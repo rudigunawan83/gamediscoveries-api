@@ -1,0 +1,62 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: Host=postgres;Port=5432;Database=gamediscoveries;Username=gamediscoveries;Password=gamediscoveries
+      Database__ApplyMigrationsOnStartup: "true"
+      Redis__ConnectionString: redis:6379
+      Redis__Enabled: "true"
+      Meilisearch__Url: http://meilisearch:7700
+      Meilisearch__Enabled: "true"
+      Cors__AllowedOrigins__0: http://localhost:3000
+      GameMonetize__Enabled: "false"
+      Authentication__Enabled: "false"
+      OpenTelemetry__Enabled: "true"
+      OpenTelemetry__PrometheusEnabled: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      meilisearch:
+        condition: service_started
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: gamediscoveries
+      POSTGRES_USER: gamediscoveries
+      POSTGRES_PASSWORD: gamediscoveries
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gamediscoveries -d gamediscoveries"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+
+volumes:
+  postgres_data:
+  meilisearch_data:

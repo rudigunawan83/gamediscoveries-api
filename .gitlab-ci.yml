@@ -1,0 +1,59 @@
+stages:
+  - build
+  - test
+  - package
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  DOTNET_NOLOGO: "true"
+
+default:
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+
+build:
+  stage: build
+  script:
+    - dotnet restore GameDiscoveries.sln
+    - dotnet build GameDiscoveries.sln --configuration Release --no-restore
+  artifacts:
+    paths:
+      - "**/bin/Release/"
+    expire_in: 1 hour
+
+unit-tests:
+  stage: test
+  needs: ["build"]
+  script:
+    - dotnet test tests/GameDiscoveries.UnitTests/GameDiscoveries.UnitTests.csproj --configuration Release --no-build
+
+architecture-tests:
+  stage: test
+  needs: ["build"]
+  script:
+    - dotnet test tests/GameDiscoveries.ArchitectureTests/GameDiscoveries.ArchitectureTests.csproj --configuration Release --no-build
+
+integration-tests:
+  stage: test
+  needs: ["build"]
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - dotnet test tests/GameDiscoveries.IntegrationTests/GameDiscoveries.IntegrationTests.csproj --configuration Release --no-build
+  allow_failure: true
+
+docker-image:
+  stage: package
+  image: docker:27
+  services:
+    - docker:27-dind
+  needs: ["unit-tests", "architecture-tests"]
+  script:
+    - docker build -t gamediscoveries-api:$CI_COMMIT_SHORT_SHA .
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
