@@ -9,7 +9,7 @@ public sealed record PaginationMeta(
     public static PaginationMeta Create(int page, int pageSize, long total)
     {
         var safePage = page < 1 ? 1 : page;
-        var safePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
+        var safePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, PagedRequest.MaxPageSize);
         var totalPages = total <= 0 ? 0 : (int)Math.Ceiling(total / (double)safePageSize);
 
         return new PaginationMeta(safePage, safePageSize, total, totalPages);
