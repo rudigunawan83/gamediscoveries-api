@@ -8,6 +8,7 @@ using GameDiscoveries.Infrastructure;
 using GameDiscoveries.Modules.Administration;
 using GameDiscoveries.Modules.Catalog;
 using GameDiscoveries.Modules.Discovery;
+using GameDiscoveries.Modules.Users;
 using Serilog;
 using Serilog.Enrichers.Span;
 using Serilog.Events;
@@ -65,6 +66,7 @@ try
     app.MapCatalogModule();
     app.MapDiscoveryModule();
     app.MapAdministrationModule();
+    app.MapUsersModule();
 
     foreach (var module in app.Services.GetServices<IModule>())
     {

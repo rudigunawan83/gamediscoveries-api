@@ -1,8 +1,10 @@
+using System.Text;
 using System.Threading.RateLimiting;
 using GameDiscoveries.Api.Extensions;
 using GameDiscoveries.Api.OpenApi;
 using GameDiscoveries.Api.Options;
 using GameDiscoveries.BuildingBlocks;
+using GameDiscoveries.BuildingBlocks.Authentication;
 using GameDiscoveries.BuildingBlocks.Authorization;
 using GameDiscoveries.BuildingBlocks.Observability;
 using GameDiscoveries.Infrastructure;
@@ -20,6 +22,7 @@ using GameDiscoveries.Modules.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -76,10 +79,9 @@ public static class DependencyInjection
             .GetSection(AuthenticationOptions.SectionName)
             .Get<AuthenticationOptions>() ?? new AuthenticationOptions();
 
-        // JWT/OAuth/OIDC-ready scaffold. Enable via Authentication:Enabled + Authority.
         var authBuilder = services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
 
-        if (authOptions.Enabled && !string.IsNullOrWhiteSpace(authOptions.Authority))
+        if (!string.IsNullOrWhiteSpace(authOptions.Authority))
         {
             authBuilder.AddJwtBearer(options =>
             {
@@ -88,8 +90,31 @@ public static class DependencyInjection
                 options.RequireHttpsMetadata = authOptions.RequireHttpsMetadata;
             });
         }
+        else if (!string.IsNullOrWhiteSpace(authOptions.SigningKey))
+        {
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authOptions.SigningKey));
+
+            authBuilder.AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = authOptions.RequireHttpsMetadata;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = authOptions.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = authOptions.Audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = signingKey,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromMinutes(1),
+                    RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+                    NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
+                };
+            });
+        }
         else
         {
+            // Scaffold only — tokens will not validate until Authority or SigningKey is configured.
             authBuilder.AddJwtBearer();
         }
 

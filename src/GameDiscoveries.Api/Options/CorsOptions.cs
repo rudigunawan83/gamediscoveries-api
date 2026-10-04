@@ -7,19 +7,6 @@ public sealed class CorsOptions
     public string[] AllowedOrigins { get; set; } = [];
 }
 
-public sealed class AuthenticationOptions
-{
-    public const string SectionName = "Authentication";
-
-    public string Authority { get; set; } = string.Empty;
-
-    public string Audience { get; set; } = "gamediscoveries-api";
-
-    public bool RequireHttpsMetadata { get; set; } = true;
-
-    public bool Enabled { get; set; }
-}
-
 public sealed class OpenTelemetryOptions
 {
     public const string SectionName = "OpenTelemetry";
@@ -37,7 +24,7 @@ public sealed class RateLimitingOptions
 {
     public const string SectionName = "RateLimiting";
 
-    public int PublicPermitLimit { get; set; } = 60;
+    public int PublicPermitLimit { get; set; } = 600;
 
     public int SearchPermitLimit { get; set; } = 30;
 
