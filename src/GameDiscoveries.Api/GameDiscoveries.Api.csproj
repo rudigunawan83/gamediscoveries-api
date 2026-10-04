@@ -39,6 +39,7 @@
     <ProjectReference Include="..\GameDiscoveries.Modules.Developer\GameDiscoveries.Modules.Developer.csproj" />
     <ProjectReference Include="..\GameDiscoveries.Modules.Advertising\GameDiscoveries.Modules.Advertising.csproj" />
     <ProjectReference Include="..\GameDiscoveries.Modules.Administration\GameDiscoveries.Modules.Administration.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Community\GameDiscoveries.Modules.Community.csproj" />
   </ItemGroup>
 
 </Project>

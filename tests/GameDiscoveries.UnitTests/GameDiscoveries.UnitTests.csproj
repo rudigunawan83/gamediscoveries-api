@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Catalog\GameDiscoveries.Modules.Catalog.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Users\GameDiscoveries.Modules.Users.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Recommendation\GameDiscoveries.Modules.Recommendation.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Community\GameDiscoveries.Modules.Community.csproj" />
   </ItemGroup>
 
 </Project>

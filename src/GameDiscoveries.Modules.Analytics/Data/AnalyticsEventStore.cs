@@ -29,7 +29,18 @@ public sealed class AnalyticsEventStore(IDbConnectionFactory connectionFactory) 
         "page_view",
         "game_viewed",
         "game_started",
-        "game_exited"
+        "game_exited",
+        "community_viewed",
+        "community_post_created",
+        "community_post_viewed",
+        "community_comment_created",
+        "community_reaction_added",
+        "community_review_created",
+        "community_game_shared",
+        "community_user_followed",
+        "community_achievement_unlocked",
+        "community_leaderboard_viewed",
+        "community_report_created"
     };
 
     public async Task TrackAsync(AnalyticsEventWriteModel model, CancellationToken cancellationToken = default)

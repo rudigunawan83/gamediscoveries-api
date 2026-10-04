@@ -147,8 +147,15 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         CancellationToken cancellationToken = default)
     {
         const string insertUserSql = """
-            INSERT INTO users (id, email, password_hash, display_name, status)
-            VALUES (@Id, @Email, @PasswordHash, @DisplayName, 'active');
+            INSERT INTO users (id, email, password_hash, display_name, username, status)
+            VALUES (
+                @Id,
+                @Email,
+                @PasswordHash,
+                @DisplayName,
+                LOWER(REGEXP_REPLACE(COALESCE(NULLIF(@DisplayName, ''), SPLIT_PART(@Email, '@', 1)) || '-' || SUBSTRING(REPLACE(@Id::text, '-', ''), 1, 6), '[^a-zA-Z0-9]+', '-', 'g')),
+                'active'
+            );
             """;
 
         const string insertRoleSql = """

@@ -33,4 +33,10 @@ public static class RecommendationModuleExtensions
         services.AddSingleton<IModule>(module);
         return services;
     }
+
+    public static IEndpointRouteBuilder MapRecommendationModule(this IEndpointRouteBuilder endpoints)
+    {
+        new RecommendationModule().MapEndpoints(endpoints);
+        return endpoints;
+    }
 }

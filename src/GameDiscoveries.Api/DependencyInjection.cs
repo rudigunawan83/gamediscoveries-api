@@ -12,6 +12,9 @@ using GameDiscoveries.Modules.Administration;
 using GameDiscoveries.Modules.Advertising;
 using GameDiscoveries.Modules.Analytics;
 using GameDiscoveries.Modules.Catalog;
+using GameDiscoveries.Modules.Community;
+using GameDiscoveries.Modules.Community.Configuration;
+using GameDiscoveries.Modules.Community.Services;
 using GameDiscoveries.Modules.Developer;
 using GameDiscoveries.Modules.Discovery;
 using GameDiscoveries.Modules.Favorites;
@@ -44,6 +47,7 @@ public static class DependencyInjection
         services.Configure<OpenTelemetryOptions>(configuration.GetSection(OpenTelemetryOptions.SectionName));
         services.Configure<RateLimitingOptions>(configuration.GetSection(RateLimitingOptions.SectionName));
         services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
+        services.Configure<CommunityOptions>(configuration.GetSection(CommunityOptions.SectionName));
 
         services.AddBuildingBlocks();
         services.AddInfrastructure(configuration);
@@ -64,6 +68,7 @@ public static class DependencyInjection
         services.AddProvidersModule();
         services.AddDiscoveryModule();
         services.AddRecommendationModule();
+        services.AddCommunityModule();
         services.AddSearchModule();
         services.AddUsersModule();
         services.AddFavoritesModule();
@@ -262,7 +267,8 @@ public static class DependencyInjection
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddMeter(GameDiscoveries.Infrastructure.Providers.Observability.ProviderSyncMetrics.MeterName)
-                    .AddMeter(RecommendationMetrics.MeterName);
+                    .AddMeter(RecommendationMetrics.MeterName)
+                    .AddMeter(CommunityMetrics.MeterName);
 
                 if (otel.PrometheusEnabled)
                 {

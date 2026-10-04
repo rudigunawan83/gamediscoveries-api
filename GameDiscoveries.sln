@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameDiscoveries.Integration
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameDiscoveries.UnitTests", "tests\GameDiscoveries.UnitTests\GameDiscoveries.UnitTests.csproj", "{C299FBA0-F5AA-4894-8278-0A0FAD224177}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameDiscoveries.Modules.Community", "src\GameDiscoveries.Modules.Community\GameDiscoveries.Modules.Community.csproj", "{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -255,6 +257,18 @@ Global
 		{C299FBA0-F5AA-4894-8278-0A0FAD224177}.Release|x64.Build.0 = Release|Any CPU
 		{C299FBA0-F5AA-4894-8278-0A0FAD224177}.Release|x86.ActiveCfg = Release|Any CPU
 		{C299FBA0-F5AA-4894-8278-0A0FAD224177}.Release|x86.Build.0 = Release|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Debug|x64.Build.0 = Debug|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Debug|x86.Build.0 = Debug|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Release|x64.ActiveCfg = Release|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Release|x64.Build.0 = Release|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Release|x86.ActiveCfg = Release|Any CPU
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -277,5 +291,6 @@ Global
 		{9C68F5FC-86F6-4EFE-8F45-CC52398DF815} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{673642EC-CDBD-4991-9DDD-035E4323F26D} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C299FBA0-F5AA-4894-8278-0A0FAD224177} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{D2D271C6-97A7-47FD-ABE2-CBBE63597A5E} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

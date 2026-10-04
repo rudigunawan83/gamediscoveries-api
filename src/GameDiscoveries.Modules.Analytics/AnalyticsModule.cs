@@ -30,4 +30,10 @@ public static class AnalyticsModuleExtensions
         services.AddSingleton<IModule>(module);
         return services;
     }
+
+    public static IEndpointRouteBuilder MapAnalyticsModule(this IEndpointRouteBuilder endpoints)
+    {
+        new AnalyticsModule().MapEndpoints(endpoints);
+        return endpoints;
+    }
 }
