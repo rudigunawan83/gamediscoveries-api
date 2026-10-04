@@ -6,4 +6,4 @@ public sealed record CategoryResponse(
     string Name,
     string? Description,
     int GameCount,
-    DateTimeOffset? LastContentAt);
+    DateTime? LastContentAt);
