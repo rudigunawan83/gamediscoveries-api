@@ -107,6 +107,16 @@ public static class GameMonetizeMapper
             return "landscape";
         }
 
-        return height > width ? "portrait" : "landscape";
+        if (height > width)
+        {
+            return "portrait";
+        }
+
+        if (width > height)
+        {
+            return "landscape";
+        }
+
+        return "both";
     }
 }

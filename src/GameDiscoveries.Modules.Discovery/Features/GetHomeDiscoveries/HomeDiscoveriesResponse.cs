@@ -8,4 +8,8 @@ public sealed record HomeDiscoveriesResponse(
     IReadOnlyList<GameSummaryResponse> Latest,
     IReadOnlyList<GameSummaryResponse> Popular,
     IReadOnlyList<GameSummaryResponse> Mobile,
-    IReadOnlyList<GameSummaryResponse> Multiplayer);
+    IReadOnlyList<GameSummaryResponse> Multiplayer,
+    IReadOnlyList<GameSummaryResponse> HotGames,
+    IReadOnlyList<GameSummaryResponse> BestGames,
+    IReadOnlyList<GameSummaryResponse> MostPlayed,
+    IReadOnlyList<GameSummaryResponse> ExclusiveGames);

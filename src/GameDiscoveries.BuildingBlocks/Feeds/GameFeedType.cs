@@ -11,5 +11,9 @@ public enum GameFeedType
     Multiplayer = 6,
     Mobile = 7,
     TwoPlayer = 8,
-    Featured = 9
+    Featured = 9,
+    HotGames = 10,
+    BestGames = 11,
+    MostPlayed = 12,
+    ExclusiveGames = 13
 }

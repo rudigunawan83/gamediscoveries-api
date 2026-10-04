@@ -36,6 +36,10 @@ public sealed class GameMonetizeOptions
             BuildingBlocks.Feeds.GameFeedType.Mobile => Feeds.Mobile,
             BuildingBlocks.Feeds.GameFeedType.TwoPlayer => Feeds.TwoPlayer,
             BuildingBlocks.Feeds.GameFeedType.Featured => Feeds.Featured,
+            BuildingBlocks.Feeds.GameFeedType.HotGames => Feeds.HotGames,
+            BuildingBlocks.Feeds.GameFeedType.BestGames => Feeds.BestGames,
+            BuildingBlocks.Feeds.GameFeedType.MostPlayed => Feeds.MostPlayed,
+            BuildingBlocks.Feeds.GameFeedType.ExclusiveGames => Feeds.ExclusiveGames,
             _ => null
         };
 
@@ -48,11 +52,6 @@ public sealed class GameMonetizeOptions
             && !string.IsNullOrWhiteSpace(FeedUrl))
         {
             return FeedUrl;
-        }
-
-        if (!string.IsNullOrWhiteSpace(BaseUrl) && !string.IsNullOrWhiteSpace(configured))
-        {
-            return configured;
         }
 
         return null;
@@ -71,4 +70,8 @@ public sealed class GameMonetizeFeedsOptions
     public string? Mobile { get; set; }
     public string? TwoPlayer { get; set; }
     public string? Featured { get; set; }
+    public string? HotGames { get; set; }
+    public string? BestGames { get; set; }
+    public string? MostPlayed { get; set; }
+    public string? ExclusiveGames { get; set; }
 }

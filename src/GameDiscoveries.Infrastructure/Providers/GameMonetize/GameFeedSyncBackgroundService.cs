@@ -20,6 +20,7 @@ public sealed class GameFeedSyncBackgroundService(
     private DateTimeOffset _nextMobile = DateTimeOffset.MinValue;
     private DateTimeOffset _nextTwoPlayer = DateTimeOffset.MinValue;
     private DateTimeOffset _nextFeatured = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextPopularity = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -82,6 +83,21 @@ public sealed class GameFeedSyncBackgroundService(
             {
                 _nextFeatured = now.AddMinutes(Math.Max(1, sync.FeaturedIntervalMinutes));
             }, stoppingToken);
+
+            if (now >= _nextPopularity)
+            {
+                _nextPopularity = now.AddMinutes(Math.Max(1, sync.PopularityIntervalMinutes));
+                foreach (var popularityFeed in new[]
+                         {
+                             GameFeedType.HotGames,
+                             GameFeedType.BestGames,
+                             GameFeedType.MostPlayed,
+                             GameFeedType.ExclusiveGames
+                         })
+                {
+                    await TryRunAsync(popularityFeed, due: true, markNext: static () => { }, stoppingToken);
+                }
+            }
 
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }

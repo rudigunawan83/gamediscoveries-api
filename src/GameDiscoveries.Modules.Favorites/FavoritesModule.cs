@@ -1,4 +1,12 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Favorites.Data;
+using GameDiscoveries.Modules.Favorites.Features;
+using GameDiscoveries.Modules.Favorites.Features.AddFavorite;
+using GameDiscoveries.Modules.Favorites.Features.CheckFavorite;
+using GameDiscoveries.Modules.Favorites.Features.ListFavorites;
+using GameDiscoveries.Modules.Favorites.Features.ListHistory;
+using GameDiscoveries.Modules.Favorites.Features.RecordHistory;
+using GameDiscoveries.Modules.Favorites.Features.RemoveFavorite;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,10 +18,18 @@ public sealed class FavoritesModule : IModule
 
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IUserLibraryRepository, UserLibraryRepository>();
+        services.AddScoped<ListFavoritesHandler>();
+        services.AddScoped<AddFavoriteHandler>();
+        services.AddScoped<CheckFavoriteHandler>();
+        services.AddScoped<RemoveFavoriteHandler>();
+        services.AddScoped<ListHistoryHandler>();
+        services.AddScoped<RecordHistoryHandler>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapFavoritesEndpoints();
     }
 }
 
@@ -25,5 +41,11 @@ public static class FavoritesModuleExtensions
         module.RegisterServices(services);
         services.AddSingleton<IModule>(module);
         return services;
+    }
+
+    public static IEndpointRouteBuilder MapFavoritesModule(this IEndpointRouteBuilder endpoints)
+    {
+        new FavoritesModule().MapEndpoints(endpoints);
+        return endpoints;
     }
 }
