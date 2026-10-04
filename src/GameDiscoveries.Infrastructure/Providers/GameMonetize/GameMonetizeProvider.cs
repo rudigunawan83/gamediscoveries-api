@@ -1,18 +1,16 @@
+using GameDiscoveries.BuildingBlocks.Feeds;
 using GameDiscoveries.Infrastructure.Providers.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GameDiscoveries.Infrastructure.Providers.GameMonetize;
 
-/// <summary>
-/// Skeleton GameMonetize provider. Full synchronization is intentionally not implemented yet.
-/// </summary>
 public sealed class GameMonetizeProvider(
     GameMonetizeClient client,
     IOptions<GameMonetizeOptions> options,
     ILogger<GameMonetizeProvider> logger) : IGameProvider
 {
-    public string Name => "GameMonetize";
+    public string Name => GameMonetizeMapper.SourceName;
 
     public async Task<IReadOnlyCollection<ExternalGame>> GetGamesAsync(
         CancellationToken cancellationToken = default)
@@ -23,7 +21,7 @@ public sealed class GameMonetizeProvider(
             return [];
         }
 
-        var feedItems = await client.FetchFeedAsync(cancellationToken);
+        var feedItems = await client.FetchFeedAsync(GameFeedType.Latest, cancellationToken);
         return feedItems
             .Select(GameMonetizeMapper.Map)
             .Where(g => g is not null)

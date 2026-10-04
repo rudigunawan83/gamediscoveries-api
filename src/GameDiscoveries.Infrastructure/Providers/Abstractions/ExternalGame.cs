@@ -14,11 +14,21 @@ public sealed class ExternalGame
 
     public string? GameUrl { get; init; }
 
+    public string? EmbedUrl { get; init; }
+
     public string? ProviderUrl { get; init; }
+
+    public string? Developer { get; init; }
 
     public bool MobileReady { get; init; }
 
+    public string Platform { get; init; } = "web";
+
     public string? Orientation { get; init; }
+
+    public int? Width { get; init; }
+
+    public int? Height { get; init; }
 
     public IReadOnlyCollection<string> Categories { get; init; } = [];
 

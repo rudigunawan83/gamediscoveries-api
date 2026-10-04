@@ -10,12 +10,13 @@ public sealed class ProvidersModule : IModule
 
     public void RegisterServices(IServiceCollection services)
     {
-        // Provider sync features will be added in a later phase.
+        // Provider feed import/sync is hosted in Infrastructure (GameFeedImportService).
+        // Public provider endpoints remain intentionally empty.
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // No public endpoints in foundation phase.
+        // Sync is exposed via Administration module admin endpoints.
     }
 }
 

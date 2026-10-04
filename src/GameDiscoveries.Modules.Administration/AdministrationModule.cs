@@ -1,4 +1,5 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Administration.Features.SyncGameFeeds;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +15,7 @@ public sealed class AdministrationModule : IModule
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapSyncGameFeeds();
     }
 }
 
@@ -25,5 +27,11 @@ public static class AdministrationModuleExtensions
         module.RegisterServices(services);
         services.AddSingleton<IModule>(module);
         return services;
+    }
+
+    public static IEndpointRouteBuilder MapAdministrationModule(this IEndpointRouteBuilder endpoints)
+    {
+        new AdministrationModule().MapEndpoints(endpoints);
+        return endpoints;
     }
 }

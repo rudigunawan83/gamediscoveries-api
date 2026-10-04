@@ -12,6 +12,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GameDiscoveries.BuildingBlocks\GameDiscoveries.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Catalog\GameDiscoveries.Modules.Catalog.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.89" />
   </ItemGroup>
 
 </Project>

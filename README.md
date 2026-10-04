@@ -644,11 +644,19 @@ GET /health/ready
 
 ## Games
 
+Implemented:
+
 ```http
-GET    /api/v1/games
-GET    /api/v1/games/{slug}
-GET    /api/v1/games/{id}/similar
-GET    /api/v1/games/{id}/related
+GET /api/v1/games
+GET /api/v1/games?page=1&pageSize=20&category=action&platform=mobile&search=mario&sort=popular&tag=arcade&mobileReady=true
+GET /api/v1/games/{slug}
+```
+
+Planned:
+
+```http
+GET /api/v1/games/{id}/similar
+GET /api/v1/games/{id}/related
 ```
 
 ---
@@ -673,6 +681,16 @@ GET /api/v1/search/suggestions?q=car
 
 ## Discovery
 
+Implemented:
+
+```http
+GET /api/v1/discoveries/home
+```
+
+Returns homepage sections from PostgreSQL (featured, trending, latest, popular, mobile, multiplayer).
+
+Planned:
+
 ```http
 GET /api/v1/discovery/for-you
 GET /api/v1/discovery/daily
@@ -680,6 +698,23 @@ GET /api/v1/discovery/quick-play
 GET /api/v1/discovery/hidden-gems
 GET /api/v1/discovery/similar/{gameId}
 GET /api/v1/discovery/random
+```
+
+---
+
+## Administration (Game Feed Sync)
+
+Protected by `X-GameDiscoveries-Admin-Key` (`GameFeedSync:AdminApiKey`).
+
+```http
+POST /api/v1/admin/game-feeds/sync
+Content-Type: application/json
+X-GameDiscoveries-Admin-Key: <admin-key>
+
+{ "feedType": "Latest" }
+
+POST /api/v1/admin/game-feeds/sync-all
+X-GameDiscoveries-Admin-Key: <admin-key>
 ```
 
 ---
@@ -1058,43 +1093,31 @@ where unrelated functionality becomes tightly coupled.
 
 # 🔄 Provider Integration
 
-Game providers must be isolated behind interfaces.
-
-```csharp
-public interface IGameProvider
-{
-    string ProviderCode { get; }
-
-    Task<IReadOnlyCollection<ExternalGame>>
-        GetGamesAsync(
-            CancellationToken cancellationToken);
-
-    Task<ExternalGame?>
-        GetGameAsync(
-            string externalId,
-            CancellationToken cancellationToken);
-}
-```
-
-Provider synchronization:
+Game providers are isolated behind interfaces. **PostgreSQL is the source of truth** for the public API. Frontend clients never call GameMonetize directly.
 
 ```text
-Provider
-   ↓
-Fetch
-   ↓
-Normalize
-   ↓
-Validate
-   ↓
-AI Enrichment
-   ↓
-PostgreSQL
-   ↓
-Meilisearch
-   ↓
-Published
+GameMonetize JSON Feed
+        ↓
+GameMonetizeClient (HttpClient + retry)
+        ↓
+GameMonetizeMapper → ExternalGame
+        ↓
+GameFeedImportService (idempotent upsert)
+        ↓
+PostgreSQL (games, categories, tags, feed memberships)
+        ↓
+Public Catalog / Discovery API → Next.js
 ```
+
+Implemented GameMonetize pieces:
+
+- `GameMonetizeOptions` + per-feed URLs (`GameMonetize:Feeds:*`) — no hardcoded production feed URLs in code
+- `GameMonetizeClient.FetchFeedAsync(GameFeedType)`
+- `GameFeedImportService` upsert by `(provider_id, provider_game_id)`
+- `GameFeedSyncBackgroundService` scheduled sync (`GameFeedSync:*`)
+- Admin manual sync endpoints
+
+Deduplication key: `ExternalId/Source` via `game_provider_mappings`. If GameMonetize omits `id`, a deterministic SHA-256 id is derived from the game URL.
 
 ---
 
@@ -1476,22 +1499,32 @@ Provider credentials
 Example:
 
 ```bash
-ConnectionStrings__Postgres=
-ConnectionStrings__Redis=
+Database__ConnectionString=
+Redis__ConnectionString=
 Meilisearch__Url=
 Meilisearch__ApiKey=
 
+GameMonetize__Enabled=true
+GameMonetize__BaseUrl=https://gamemonetize.com
+GameMonetize__Feeds__Latest=
+GameMonetize__Feeds__Popular=
+GameMonetize__Feeds__Action=
+GameMonetize__Feeds__Puzzle=
+GameMonetize__Feeds__Racing=
+GameMonetize__Feeds__Sports=
+GameMonetize__Feeds__Multiplayer=
+GameMonetize__Feeds__Mobile=
+GameMonetize__Feeds__TwoPlayer=
+GameMonetize__Feeds__Featured=
+
+GameFeedSync__Enabled=true
+GameFeedSync__AdminApiKey=
+GameFeedSync__LatestIntervalMinutes=60
+GameFeedSync__PopularIntervalMinutes=120
+GameFeedSync__CategoryIntervalMinutes=360
+
 Authentication__Authority=
 Authentication__Audience=
-
-AI__BaseUrl=
-AI__ApiKey=
-AI__Model=
-
-Storage__Endpoint=
-Storage__Bucket=
-Storage__AccessKey=
-Storage__SecretKey=
 ```
 
 ---

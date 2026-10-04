@@ -1,6 +1,7 @@
 using FluentValidation;
 using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.Modules.Catalog.Features.GetGameBySlug;
+using GameDiscoveries.Modules.Catalog.Features.ListGames;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,11 +14,13 @@ public sealed class CatalogModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<GetGameBySlugHandler>();
+        services.AddScoped<ListGamesHandler>();
         services.AddValidatorsFromAssemblyContaining<GetGameBySlugValidator>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapListGames();
         endpoints.MapGetGameBySlug();
     }
 }

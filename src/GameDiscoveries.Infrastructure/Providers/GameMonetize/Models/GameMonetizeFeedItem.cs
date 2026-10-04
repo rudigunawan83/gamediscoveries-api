@@ -33,4 +33,7 @@ public sealed class GameMonetizeFeedItem
 
     [JsonPropertyName("instructions")]
     public string? Instructions { get; set; }
+
+    [JsonPropertyName("company")]
+    public string? Company { get; set; }
 }

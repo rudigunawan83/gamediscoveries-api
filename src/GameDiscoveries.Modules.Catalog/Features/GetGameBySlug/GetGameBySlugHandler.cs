@@ -15,21 +15,35 @@ public sealed class GetGameBySlugHandler(
     {
         const string sql = """
             SELECT
-                id AS Id,
-                slug AS Slug,
-                title AS Title,
-                description AS Description,
-                thumbnail_url AS ThumbnailUrl,
-                cover_url AS CoverUrl,
-                game_url AS GameUrl,
-                status AS Status,
-                mobile_ready AS MobileReady,
-                orientation AS Orientation,
-                created_at AS CreatedAt,
-                updated_at AS UpdatedAt,
-                published_at AS PublishedAt
-            FROM games
-            WHERE slug = @Slug
+                g.id AS Id,
+                g.slug AS Slug,
+                g.title AS Title,
+                g.description AS Description,
+                g.thumbnail_url AS ThumbnailUrl,
+                g.cover_url AS CoverUrl,
+                g.game_url AS GameUrl,
+                g.embed_url AS EmbedUrl,
+                cat.name AS Category,
+                g.developer AS Developer,
+                g.platform AS Platform,
+                g.status AS Status,
+                g.mobile_ready AS MobileReady,
+                g.orientation AS Orientation,
+                g.width AS Width,
+                g.height AS Height,
+                g.created_at AS CreatedAt,
+                g.updated_at AS UpdatedAt,
+                g.published_at AS PublishedAt
+            FROM games g
+            LEFT JOIN LATERAL (
+                SELECT c.name
+                FROM game_categories gc
+                INNER JOIN categories c ON c.id = gc.category_id
+                WHERE gc.game_id = g.id
+                ORDER BY c.name
+                LIMIT 1
+            ) cat ON TRUE
+            WHERE g.slug = @Slug
             LIMIT 1;
             """;
 
@@ -62,9 +76,15 @@ public sealed class GameRow
     public string? ThumbnailUrl { get; init; }
     public string? CoverUrl { get; init; }
     public string? GameUrl { get; init; }
+    public string? EmbedUrl { get; init; }
+    public string? Category { get; init; }
+    public string? Developer { get; init; }
+    public string? Platform { get; init; }
     public string Status { get; init; } = string.Empty;
     public bool MobileReady { get; init; }
     public string? Orientation { get; init; }
+    public int? Width { get; init; }
+    public int? Height { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? PublishedAt { get; init; }

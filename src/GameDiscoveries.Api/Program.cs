@@ -5,7 +5,9 @@ using GameDiscoveries.Api.OpenApi;
 using GameDiscoveries.Api.Options;
 using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.Infrastructure;
+using GameDiscoveries.Modules.Administration;
 using GameDiscoveries.Modules.Catalog;
+using GameDiscoveries.Modules.Discovery;
 using Serilog;
 using Serilog.Enrichers.Span;
 using Serilog.Events;
@@ -61,6 +63,8 @@ try
 
     app.MapGameDiscoveriesHealthChecks();
     app.MapCatalogModule();
+    app.MapDiscoveryModule();
+    app.MapAdministrationModule();
 
     foreach (var module in app.Services.GetServices<IModule>())
     {

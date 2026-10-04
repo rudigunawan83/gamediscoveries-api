@@ -1,10 +1,14 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Caching;
+using GameDiscoveries.BuildingBlocks.Configuration;
 using GameDiscoveries.BuildingBlocks.Database;
+using GameDiscoveries.BuildingBlocks.Feeds;
+using GameDiscoveries.BuildingBlocks.Ranking;
 using GameDiscoveries.Infrastructure.Meilisearch;
 using GameDiscoveries.Infrastructure.PostgreSQL;
 using GameDiscoveries.Infrastructure.Providers.Abstractions;
 using GameDiscoveries.Infrastructure.Providers.GameMonetize;
+using GameDiscoveries.Infrastructure.Ranking;
 using GameDiscoveries.Infrastructure.Redis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,7 +47,11 @@ public static class DependencyInjection
         services
             .AddOptions<GameMonetizeOptions>()
             .Bind(configuration.GetSection(GameMonetizeOptions.SectionName))
-            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services
+            .AddOptions<GameFeedSyncOptions>()
+            .Bind(configuration.GetSection(GameFeedSyncOptions.SectionName))
             .ValidateOnStart();
 
         services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
@@ -79,6 +87,9 @@ public static class DependencyInjection
 
         services.AddHttpClient<GameMonetizeClient>();
         services.AddSingleton<IGameProvider, GameMonetizeProvider>();
+        services.AddScoped<IGameFeedImportService, GameFeedImportService>();
+        services.AddSingleton<IGameRankingService, SimpleGameRankingService>();
+        services.AddHostedService<GameFeedSyncBackgroundService>();
 
         return services;
     }
