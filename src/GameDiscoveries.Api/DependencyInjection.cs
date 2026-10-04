@@ -17,6 +17,8 @@ using GameDiscoveries.Modules.Discovery;
 using GameDiscoveries.Modules.Favorites;
 using GameDiscoveries.Modules.Providers;
 using GameDiscoveries.Modules.Recommendation;
+using GameDiscoveries.Modules.Recommendation.Configuration;
+using GameDiscoveries.Modules.Recommendation.Services;
 using GameDiscoveries.Modules.Search;
 using GameDiscoveries.Modules.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -41,6 +43,7 @@ public static class DependencyInjection
         services.Configure<AuthenticationOptions>(configuration.GetSection(AuthenticationOptions.SectionName));
         services.Configure<OpenTelemetryOptions>(configuration.GetSection(OpenTelemetryOptions.SectionName));
         services.Configure<RateLimitingOptions>(configuration.GetSection(RateLimitingOptions.SectionName));
+        services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
 
         services.AddBuildingBlocks();
         services.AddInfrastructure(configuration);
@@ -257,7 +260,9 @@ public static class DependencyInjection
             {
                 metrics
                     .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation();
+                    .AddHttpClientInstrumentation()
+                    .AddMeter(GameDiscoveries.Infrastructure.Providers.Observability.ProviderSyncMetrics.MeterName)
+                    .AddMeter(RecommendationMetrics.MeterName);
 
                 if (otel.PrometheusEnabled)
                 {

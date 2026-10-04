@@ -10,6 +10,7 @@ public sealed record SyncGameFeedResponse(
     int Updated,
     int Skipped,
     int Failed,
+    int Unavailable,
     long DurationMs,
     IReadOnlyList<string> Errors);
 
@@ -23,6 +24,7 @@ public static class SyncGameFeedResponseMapper
         result.Updated,
         result.Skipped,
         result.Failed,
+        result.Unavailable,
         result.DurationMs,
         result.Errors);
 }

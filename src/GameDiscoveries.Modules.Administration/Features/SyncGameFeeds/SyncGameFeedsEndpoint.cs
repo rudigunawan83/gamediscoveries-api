@@ -57,7 +57,7 @@ public static class SyncGameFeedsEndpoint
         return endpoints;
     }
 
-    private static bool IsAuthorized(HttpRequest request, GameFeedSyncOptions options)
+    public static bool IsAuthorized(HttpRequest request, GameFeedSyncOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.AdminApiKey))
         {

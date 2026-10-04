@@ -1095,6 +1095,8 @@ where unrelated functionality becomes tightly coupled.
 
 Game providers are isolated behind interfaces. **PostgreSQL is the source of truth** for the public API. Frontend clients never call GameMonetize directly.
 
+See also: [`docs/game-providers.md`](docs/game-providers.md) for configuration, admin sync, availability, and how to add a future provider.
+
 ```text
 GameMonetize JSON Feed
         ↓

@@ -18,6 +18,8 @@ public sealed class FeedImportResult
 
     public int Failed { get; init; }
 
+    public int Unavailable { get; init; }
+
     public IReadOnlyList<string> Errors { get; init; } = [];
 
     public long DurationMs => Math.Max(0, (long)(CompletedAt - StartedAt).TotalMilliseconds);

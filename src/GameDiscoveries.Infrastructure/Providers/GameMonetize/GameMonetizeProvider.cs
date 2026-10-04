@@ -39,4 +39,24 @@ public sealed class GameMonetizeProvider(
         return games.FirstOrDefault(g =>
             string.Equals(g.ProviderGameId, providerGameId, StringComparison.OrdinalIgnoreCase));
     }
+
+    public async Task<IReadOnlyCollection<string>> GetCategoriesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var games = await GetGamesAsync(cancellationToken);
+        return games
+            .SelectMany(g => g.Categories)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public async Task<string?> GetGamePlayUrlAsync(
+        string providerGameId,
+        CancellationToken cancellationToken = default)
+    {
+        var game = await GetGameAsync(providerGameId, cancellationToken);
+        return game?.EmbedUrl ?? game?.GameUrl;
+    }
 }

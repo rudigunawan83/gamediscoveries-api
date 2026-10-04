@@ -1,4 +1,7 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Recommendation.Data;
+using GameDiscoveries.Modules.Recommendation.Features;
+using GameDiscoveries.Modules.Recommendation.Services;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,10 +13,14 @@ public sealed class RecommendationModule : IModule
 
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IRecommendationRepository, RecommendationRepository>();
+        services.AddScoped<IRecommendationCache, RecommendationCache>();
+        services.AddScoped<IRecommendationEngine, RecommendationEngine>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapRecommendationsEndpoints();
     }
 }
 

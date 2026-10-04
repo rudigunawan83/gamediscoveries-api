@@ -2,6 +2,7 @@ using System.Text.Json;
 using GameDiscoveries.BuildingBlocks.Text;
 using GameDiscoveries.Infrastructure.Providers.Abstractions;
 using GameDiscoveries.Infrastructure.Providers.GameMonetize.Models;
+using GameDiscoveries.Infrastructure.Providers.Normalization;
 
 namespace GameDiscoveries.Infrastructure.Providers.GameMonetize;
 
@@ -22,13 +23,15 @@ public static class GameMonetizeMapper
             return null;
         }
 
-        var tags = string.IsNullOrWhiteSpace(item.Tags)
-            ? Array.Empty<string>()
-            : item.Tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var tags = TagNormalizer.Normalize(
+            string.IsNullOrWhiteSpace(item.Tags)
+                ? Array.Empty<string>()
+                : item.Tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
 
-        var categories = string.IsNullOrWhiteSpace(item.Category)
-            ? Array.Empty<string>()
-            : [item.Category.Trim()];
+        var categories = ProviderCategoryMapper.MapGameMonetizeMany(
+            string.IsNullOrWhiteSpace(item.Category)
+                ? Array.Empty<string>()
+                : [item.Category.Trim()]);
 
         var mobileReady = InferMobileReady(item, tags, categories);
         int? width = int.TryParse(item.Width, out var w) && w > 0 ? w : null;

@@ -1,11 +1,14 @@
 using System.Data;
 using System.Data.Common;
 using Dapper;
+using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Caching;
 using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.BuildingBlocks.Feeds;
 using GameDiscoveries.BuildingBlocks.Text;
 using GameDiscoveries.Infrastructure.Providers.Abstractions;
+using GameDiscoveries.Infrastructure.Providers.Observability;
+using GameDiscoveries.Infrastructure.Providers.Search;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,10 +18,12 @@ public sealed class GameFeedImportService(
     GameMonetizeClient client,
     IDbConnectionFactory connectionFactory,
     ICacheService cache,
+    ISearchService search,
     IOptions<GameMonetizeOptions> options,
     ILogger<GameFeedImportService> logger) : IGameFeedImportService
 {
     private static readonly Guid GameMonetizeProviderId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private const string GamesSearchIndex = "games";
 
     public async Task<FeedImportResult> ImportAsync(
         GameFeedType feedType,
@@ -30,13 +35,19 @@ public sealed class GameFeedImportService(
         var updated = 0;
         var skipped = 0;
         var failed = 0;
+        var unavailable = 0;
         var totalReceived = 0;
+        var systemicError = false;
+        var indexedDocuments = new List<GameSearchDocument>();
+        var seenProviderGameIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (!options.Value.Enabled)
         {
             errors.Add("GameMonetize provider is disabled.");
-            return BuildResult(feedType, startedAt, totalReceived, created, updated, skipped, failed, errors);
+            return BuildResult(feedType, startedAt, totalReceived, created, updated, skipped, failed, unavailable, errors);
         }
+
+        logger.LogInformation("GameProvider.SyncStarted Provider={Provider} FeedType={FeedType}", GameMonetizeMapper.SourceName, feedType);
 
         try
         {
@@ -59,18 +70,34 @@ public sealed class GameFeedImportService(
                         continue;
                     }
 
-                    var outcome = await UpsertGameAsync(connection, external, feedType, cancellationToken);
+                    seenProviderGameIds.Add(external.ProviderGameId);
+                    var (outcome, document) = await UpsertGameAsync(connection, external, feedType, cancellationToken);
                     switch (outcome)
                     {
                         case UpsertOutcome.Created:
                             created++;
+                            logger.LogInformation(
+                                "GameProvider.GameCreated Provider={Provider} ProviderGameId={ProviderGameId} Slug={Slug}",
+                                GameMonetizeMapper.SourceName,
+                                external.ProviderGameId,
+                                document?.Slug);
                             break;
                         case UpsertOutcome.Updated:
                             updated++;
+                            logger.LogInformation(
+                                "GameProvider.GameUpdated Provider={Provider} ProviderGameId={ProviderGameId} Slug={Slug}",
+                                GameMonetizeMapper.SourceName,
+                                external.ProviderGameId,
+                                document?.Slug);
                             break;
                         default:
                             skipped++;
                             break;
+                    }
+
+                    if (document is not null)
+                    {
+                        indexedDocuments.Add(document);
                     }
                 }
                 catch (Exception ex)
@@ -82,6 +109,11 @@ public sealed class GameFeedImportService(
                 }
             }
 
+            if (feedType == GameFeedType.Latest && totalReceived > 0 && failed == 0)
+            {
+                unavailable = await MarkUnavailableAsync(connection, seenProviderGameIds, cancellationToken);
+            }
+
             await UpdateFeedSyncStateAsync(
                 connection,
                 feedType,
@@ -91,9 +123,10 @@ public sealed class GameFeedImportService(
         }
         catch (Exception ex)
         {
+            systemicError = true;
             failed++;
             errors.Add(ex.Message);
-            logger.LogError(ex, "[GameFeedSync] {FeedType} feed failed", feedType);
+            logger.LogError(ex, "GameProvider.SyncFailed Provider={Provider} FeedType={FeedType}", GameMonetizeMapper.SourceName, feedType);
 
             try
             {
@@ -106,21 +139,38 @@ public sealed class GameFeedImportService(
             }
         }
 
-        var result = BuildResult(feedType, startedAt, totalReceived, created, updated, skipped, failed, errors);
+        if (indexedDocuments.Count > 0)
+        {
+            await TryIndexAsync(indexedDocuments, cancellationToken);
+        }
+
+        if (created > 0 || updated > 0 || unavailable > 0)
+        {
+            await InvalidateCachesAsync(cancellationToken);
+        }
+
+        var result = BuildResult(feedType, startedAt, totalReceived, created, updated, skipped, failed, unavailable, errors);
+        ProviderSyncMetrics.Record(
+            feedType.ToString(),
+            result.TotalReceived,
+            result.Created,
+            result.Updated,
+            result.Failed,
+            result.Unavailable,
+            result.DurationMs,
+            systemicError);
+
         logger.LogInformation(
-            "[GameFeedSync] {FeedType} feed completed. Received={Received} Created={Created} Updated={Updated} Skipped={Skipped} Failed={Failed} Duration={Duration}ms",
+            "GameProvider.SyncCompleted Provider={Provider} FeedType={FeedType} Received={Received} Created={Created} Updated={Updated} Skipped={Skipped} Failed={Failed} Unavailable={Unavailable} Duration={Duration}ms",
+            GameMonetizeMapper.SourceName,
             feedType,
             result.TotalReceived,
             result.Created,
             result.Updated,
             result.Skipped,
             result.Failed,
+            result.Unavailable,
             result.DurationMs);
-
-        if (created > 0 || updated > 0)
-        {
-            await cache.RemoveAsync("discoveries:home:v1", cancellationToken);
-        }
 
         return result;
     }
@@ -137,7 +187,7 @@ public sealed class GameFeedImportService(
         return results;
     }
 
-    private async Task<UpsertOutcome> UpsertGameAsync(
+    private async Task<(UpsertOutcome Outcome, GameSearchDocument? Document)> UpsertGameAsync(
         DbConnection connection,
         ExternalGame external,
         GameFeedType feedType,
@@ -148,7 +198,7 @@ public sealed class GameFeedImportService(
         var existing = await connection.QuerySingleOrDefaultAsync<ExistingMappingRow>(
             new CommandDefinition(
                 """
-                SELECT g.id AS GameId, g.slug AS Slug, g.title AS Title
+                SELECT g.id AS GameId, g.slug AS Slug, g.title AS Title, g.status AS Status
                 FROM game_provider_mappings m
                 INNER JOIN games g ON g.id = m.game_id
                 WHERE m.provider_id = @ProviderId AND m.provider_game_id = @ProviderGameId
@@ -159,12 +209,13 @@ public sealed class GameFeedImportService(
                 cancellationToken: cancellationToken));
 
         Guid gameId;
+        string slug;
         UpsertOutcome outcome;
 
         if (existing is null)
         {
             gameId = Guid.NewGuid();
-            var slug = await CreateUniqueSlugAsync(connection, tx, external.Title, gameId, cancellationToken);
+            slug = await CreateUniqueSlugAsync(connection, tx, external.Title, gameId, cancellationToken);
             var now = DateTimeOffset.UtcNow;
 
             await connection.ExecuteAsync(
@@ -207,10 +258,10 @@ public sealed class GameFeedImportService(
                     """
                     INSERT INTO game_provider_mappings (
                         id, game_id, provider_id, provider_game_id, provider_url,
-                        raw_payload, last_synced_at, created_at, updated_at)
+                        raw_payload, last_synced_at, last_seen_at, availability_status, created_at, updated_at)
                     VALUES (
                         @Id, @GameId, @ProviderId, @ProviderGameId, @ProviderUrl,
-                        CAST(@RawPayload AS jsonb), @Now, @Now, @Now);
+                        CAST(@RawPayload AS jsonb), @Now, @Now, 'active', @Now, @Now);
                     """,
                     new
                     {
@@ -230,9 +281,11 @@ public sealed class GameFeedImportService(
         else
         {
             gameId = existing.GameId;
+            slug = existing.Slug;
             var now = DateTimeOffset.UtcNow;
 
             // Preserve slug and internal analytics; refresh provider-owned catalog fields only.
+            // Reactivate previously unavailable/archived titles when they reappear.
             await connection.ExecuteAsync(
                 new CommandDefinition(
                     """
@@ -251,6 +304,7 @@ public sealed class GameFeedImportService(
                         platform = @Platform,
                         mobile_ready = @MobileReady,
                         orientation = @Orientation,
+                        status = 'published',
                         updated_at = @Now
                     WHERE id = @GameId;
                     """,
@@ -283,6 +337,8 @@ public sealed class GameFeedImportService(
                         provider_url = @ProviderUrl,
                         raw_payload = CAST(@RawPayload AS jsonb),
                         last_synced_at = @Now,
+                        last_seen_at = @Now,
+                        availability_status = 'active',
                         updated_at = @Now
                     WHERE provider_id = @ProviderId AND provider_game_id = @ProviderGameId;
                     """,
@@ -305,7 +361,22 @@ public sealed class GameFeedImportService(
         await SyncFeedMembershipAsync(connection, tx, gameId, feedType, cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
-        return outcome;
+
+        var document = new GameSearchDocument
+        {
+            Id = gameId.ToString(),
+            Slug = slug,
+            Title = external.Title,
+            Description = external.Description,
+            Category = external.Categories.FirstOrDefault(),
+            Tags = external.Tags.ToList(),
+            Developer = external.Developer,
+            Provider = GameMonetizeMapper.SourceName,
+            Status = "published",
+            MobileReady = external.MobileReady
+        };
+
+        return (outcome, document);
     }
 
     private static async Task SyncCategoriesAsync(
@@ -514,6 +585,106 @@ public sealed class GameFeedImportService(
                 cancellationToken: cancellationToken));
     }
 
+    private async Task<int> MarkUnavailableAsync(
+        DbConnection connection,
+        HashSet<string> seenProviderGameIds,
+        CancellationToken cancellationToken)
+    {
+        if (seenProviderGameIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var seen = seenProviderGameIds.ToArray();
+        var unavailableIds = (await connection.QueryAsync<Guid>(
+            new CommandDefinition(
+                """
+                UPDATE game_provider_mappings
+                SET
+                    availability_status = 'unavailable',
+                    updated_at = NOW() AT TIME ZONE 'utc'
+                WHERE provider_id = @ProviderId
+                  AND availability_status = 'active'
+                  AND NOT (provider_game_id = ANY(@SeenIds))
+                RETURNING game_id;
+                """,
+                new { ProviderId = GameMonetizeProviderId, SeenIds = seen },
+                cancellationToken: cancellationToken))).ToList();
+
+        if (unavailableIds.Count == 0)
+        {
+            return 0;
+        }
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                UPDATE games
+                SET status = 'archived', updated_at = NOW() AT TIME ZONE 'utc'
+                WHERE id = ANY(@GameIds)
+                  AND status = 'published';
+                """,
+                new { GameIds = unavailableIds.ToArray() },
+                cancellationToken: cancellationToken));
+
+        foreach (var gameId in unavailableIds)
+        {
+            logger.LogInformation(
+                "GameProvider.GameUnavailable Provider={Provider} GameId={GameId}",
+                GameMonetizeMapper.SourceName,
+                gameId);
+
+            try
+            {
+                await search.DeleteAsync(GamesSearchIndex, gameId.ToString(), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Meilisearch delete failed for unavailable game {GameId}", gameId);
+            }
+        }
+
+        return unavailableIds.Count;
+    }
+
+    private async Task TryIndexAsync(
+        IReadOnlyList<GameSearchDocument> documents,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await search.IndexAsync(GamesSearchIndex, documents, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // PostgreSQL remains source of truth; indexing failures must not roll back sync.
+            logger.LogWarning(ex, "Meilisearch indexing failed after GameMonetize sync ({Count} docs)", documents.Count);
+        }
+    }
+
+    private async Task InvalidateCachesAsync(CancellationToken cancellationToken)
+    {
+        string[] keys =
+        [
+            "discoveries:home:v1",
+            "discoveries:home:v2",
+            "games:list:newest:p1",
+            "games:list:popular:p1"
+        ];
+
+        foreach (var key in keys)
+        {
+            try
+            {
+                await cache.RemoveAsync(key, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Cache invalidation failed for key {CacheKey}", key);
+            }
+        }
+    }
+
     private static FeedImportResult BuildResult(
         GameFeedType feedType,
         DateTimeOffset startedAt,
@@ -522,6 +693,7 @@ public sealed class GameFeedImportService(
         int updated,
         int skipped,
         int failed,
+        int unavailable,
         IReadOnlyList<string> errors)
         => new()
         {
@@ -533,6 +705,7 @@ public sealed class GameFeedImportService(
             Updated = updated,
             Skipped = skipped,
             Failed = failed,
+            Unavailable = unavailable,
             Errors = errors
         };
 
@@ -548,5 +721,6 @@ public sealed class GameFeedImportService(
         public Guid GameId { get; init; }
         public string Slug { get; init; } = string.Empty;
         public string Title { get; init; } = string.Empty;
+        public string Status { get; init; } = string.Empty;
     }
 }

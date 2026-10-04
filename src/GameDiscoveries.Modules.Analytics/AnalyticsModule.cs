@@ -1,4 +1,6 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Analytics.Data;
+using GameDiscoveries.Modules.Analytics.Features.TrackEvent;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,10 +12,12 @@ public sealed class AnalyticsModule : IModule
 
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IAnalyticsEventStore, AnalyticsEventStore>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapTrackEvent();
     }
 }
 

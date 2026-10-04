@@ -1,4 +1,5 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Administration.Features.Providers;
 using GameDiscoveries.Modules.Administration.Features.SyncGameFeeds;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ public sealed class AdministrationModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapSyncGameFeeds();
+        endpoints.MapProviderAdminEndpoints();
     }
 }
 

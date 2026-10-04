@@ -10,4 +10,11 @@ public interface IGameProvider
     Task<ExternalGame?> GetGameAsync(
         string providerGameId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<string>> GetCategoriesAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<string?> GetGamePlayUrlAsync(
+        string providerGameId,
+        CancellationToken cancellationToken = default);
 }
