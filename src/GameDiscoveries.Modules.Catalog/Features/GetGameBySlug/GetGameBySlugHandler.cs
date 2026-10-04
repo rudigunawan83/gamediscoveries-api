@@ -19,6 +19,7 @@ public sealed class GetGameBySlugHandler(
                 g.slug AS Slug,
                 g.title AS Title,
                 g.description AS Description,
+                COALESCE(g.instructions, m.raw_payload ->> 'instructions') AS Instructions,
                 g.thumbnail_url AS ThumbnailUrl,
                 g.cover_url AS CoverUrl,
                 g.game_url AS GameUrl,
@@ -43,8 +44,30 @@ public sealed class GetGameBySlugHandler(
                 ORDER BY c.name
                 LIMIT 1
             ) cat ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT raw_payload
+                FROM game_provider_mappings gpm
+                WHERE gpm.game_id = g.id
+                ORDER BY gpm.last_synced_at DESC NULLS LAST
+                LIMIT 1
+            ) m ON TRUE
             WHERE g.slug = @Slug
             LIMIT 1;
+            """;
+
+        const string tagsSql = """
+            SELECT DISTINCT tag
+            FROM (
+                SELECT gt.tag AS tag
+                FROM game_tags gt
+                WHERE gt.game_id = @GameId
+                UNION ALL
+                SELECT t.name AS tag
+                FROM game_tag_links gtl
+                INNER JOIN tags t ON t.id = gtl.tag_id
+                WHERE gtl.game_id = @GameId
+            ) tags
+            ORDER BY tag;
             """;
 
         await using var connection = (System.Data.Common.DbConnection)
@@ -61,9 +84,13 @@ public sealed class GetGameBySlugHandler(
                 "https://api.gamediscoveries.com/errors/game-not-found");
         }
 
+        var tags = (await connection.QueryAsync<string>(
+            new CommandDefinition(tagsSql, new { GameId = game.Id }, cancellationToken: cancellationToken)))
+            .ToList();
+
         logger.LogInformation("Game retrieved {GameId} {Slug}", game.Id, game.Slug);
 
-        return GameMapper.ToResponse(game);
+        return GameMapper.ToResponse(game, tags);
     }
 }
 
@@ -73,6 +100,7 @@ public sealed class GameRow
     public string Slug { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
     public string? Description { get; init; }
+    public string? Instructions { get; init; }
     public string? ThumbnailUrl { get; init; }
     public string? CoverUrl { get; init; }
     public string? GameUrl { get; init; }

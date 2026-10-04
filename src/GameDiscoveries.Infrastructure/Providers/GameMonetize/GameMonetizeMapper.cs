@@ -38,7 +38,8 @@ public static class GameMonetizeMapper
         {
             ProviderGameId = providerGameId,
             Title = item.Title.Trim(),
-            Description = item.Description,
+            Description = BuildingBlocks.Text.HtmlText.Decode(item.Description),
+            Instructions = BuildingBlocks.Text.HtmlText.Decode(item.Instructions),
             ThumbnailUrl = item.Thumb,
             CoverUrl = item.Thumb,
             GameUrl = item.Url,

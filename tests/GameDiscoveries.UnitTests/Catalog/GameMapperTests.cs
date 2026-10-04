@@ -26,12 +26,35 @@ public sealed class GameMapperTests
             PublishedAt = now
         };
 
-        var response = GameMapper.ToResponse(row);
+        var response = GameMapper.ToResponse(row, ["arcade", "demo"]);
 
         response.Slug.Should().Be("example-game");
         response.Title.Should().Be("Example Game");
         response.MobileReady.Should().BeTrue();
         response.Status.Should().Be("published");
         response.Id.Should().Be(row.Id);
+        response.Tags.Should().BeEquivalentTo(["arcade", "demo"]);
+    }
+
+    [Fact]
+    public void Decodes_html_entities_in_description()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var row = new GameRow
+        {
+            Id = Guid.NewGuid(),
+            Slug = "html-game",
+            Title = "HTML Game",
+            Description = "Play now &mdash; instantly!",
+            Instructions = "Click &amp; tap",
+            Status = "published",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        var response = GameMapper.ToResponse(row, []);
+
+        response.Description.Should().Be("Play now — instantly!");
+        response.Instructions.Should().Be("Click & tap");
     }
 }

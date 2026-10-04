@@ -5,6 +5,7 @@ public sealed record GameResponse(
     string Slug,
     string Title,
     string? Description,
+    string? Instructions,
     string? ThumbnailUrl,
     string? CoverUrl,
     string? GameUrl,
@@ -17,6 +18,7 @@ public sealed record GameResponse(
     string? Orientation,
     int? Width,
     int? Height,
+    IReadOnlyList<string> Tags,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? PublishedAt);

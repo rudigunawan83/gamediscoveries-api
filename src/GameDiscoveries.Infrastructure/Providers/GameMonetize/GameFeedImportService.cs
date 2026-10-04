@@ -171,11 +171,11 @@ public sealed class GameFeedImportService(
                 new CommandDefinition(
                     """
                     INSERT INTO games (
-                        id, slug, title, description, thumbnail_url, cover_url, game_url,
+                        id, slug, title, description, instructions, thumbnail_url, cover_url, game_url,
                         embed_url, developer, width, height, platform, status, mobile_ready,
                         orientation, created_at, updated_at, published_at)
                     VALUES (
-                        @Id, @Slug, @Title, @Description, @ThumbnailUrl, @CoverUrl, @GameUrl,
+                        @Id, @Slug, @Title, @Description, @Instructions, @ThumbnailUrl, @CoverUrl, @GameUrl,
                         @EmbedUrl, @Developer, @Width, @Height, @Platform, @Status, @MobileReady,
                         @Orientation, @Now, @Now, @Now);
                     """,
@@ -185,6 +185,7 @@ public sealed class GameFeedImportService(
                         Slug = slug,
                         external.Title,
                         external.Description,
+                        external.Instructions,
                         external.ThumbnailUrl,
                         external.CoverUrl,
                         external.GameUrl,
@@ -239,6 +240,7 @@ public sealed class GameFeedImportService(
                     SET
                         title = @Title,
                         description = @Description,
+                        instructions = @Instructions,
                         thumbnail_url = @ThumbnailUrl,
                         cover_url = @CoverUrl,
                         game_url = @GameUrl,
@@ -257,6 +259,7 @@ public sealed class GameFeedImportService(
                         GameId = gameId,
                         external.Title,
                         external.Description,
+                        external.Instructions,
                         external.ThumbnailUrl,
                         external.CoverUrl,
                         external.GameUrl,

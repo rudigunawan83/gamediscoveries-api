@@ -8,6 +8,8 @@ public sealed class ExternalGame
 
     public string? Description { get; init; }
 
+    public string? Instructions { get; init; }
+
     public string? ThumbnailUrl { get; init; }
 
     public string? CoverUrl { get; init; }
