@@ -101,9 +101,9 @@ public sealed class GetHomeDiscoveriesHandler(
             LIMIT @Limit;
             """;
 
-        var rows = await connection.QueryAsync<GameSummaryResponse>(
+        var rows = await connection.QueryAsync<GameSummaryRow>(
             new CommandDefinition(sql, new { FeedType = feedType, Limit = limit }, cancellationToken: cancellationToken));
-        return rows.ToList();
+        return rows.Select(row => row.ToResponse()).ToList();
     }
 
     private static async Task<IReadOnlyList<GameSummaryResponse>> QueryTrendingAsync(
@@ -140,9 +140,9 @@ public sealed class GetHomeDiscoveriesHandler(
             LIMIT @Limit;
             """;
 
-        var rows = await connection.QueryAsync<GameSummaryResponse>(
+        var rows = await connection.QueryAsync<GameSummaryRow>(
             new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken));
-        return rows.ToList();
+        return rows.Select(row => row.ToResponse()).ToList();
     }
 
     private static Task<IReadOnlyList<GameSummaryResponse>> QueryPublishedAsync(

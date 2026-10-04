@@ -116,8 +116,10 @@ public sealed class ListGamesHandler(
         await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
         var total = await connection.ExecuteScalarAsync<long>(
             new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken));
-        var items = (await connection.QueryAsync<GameSummaryResponse>(
-            new CommandDefinition(listSql, parameters, cancellationToken: cancellationToken))).ToList();
+        var items = (await connection.QueryAsync<GameSummaryRow>(
+            new CommandDefinition(listSql, parameters, cancellationToken: cancellationToken)))
+            .Select(row => row.ToResponse())
+            .ToList();
 
         logger.LogInformation(
             "Listed games page={Page} size={PageSize} total={Total}",
