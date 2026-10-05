@@ -5,6 +5,7 @@ using GameDiscoveries.Modules.Leaderboards.Domain;
 using GameDiscoveries.Modules.Leaderboards.Options;
 using GameDiscoveries.Modules.Xp.Models;
 using GameDiscoveries.Modules.Xp.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -32,7 +33,7 @@ public sealed class LeaderboardService(
     ILeaderboardStore store,
     ILeaderboardEligibilityService eligibility,
     ICacheService cache,
-    IXpEngine xpEngine,
+    IServiceScopeFactory scopeFactory,
     IAuditLogService auditLog,
     IOptions<LeaderboardOptions> optionsAccessor,
     ILogger<LeaderboardService> logger) : ILeaderboardService, ILeaderboardXpSink
@@ -331,6 +332,8 @@ public sealed class LeaderboardService(
     {
         var (awarded, skipped) = await store.SettleCompetitionAsync(code, async (userId, xp) =>
         {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var xpEngine = scope.ServiceProvider.GetRequiredService<IXpEngine>();
             var result = await xpEngine.AwardAsync(new XpAwardRequest(
                 userId,
                 "COMPETITION_REWARD",
