@@ -24,7 +24,7 @@ public sealed class GameFeedSyncOptions
 
     public int FeaturedIntervalMinutes { get; set; } = 360;
 
-    public int PopularityIntervalMinutes { get; set; } = 180;
+    public int PopularityIntervalMinutes { get; set; } = 360;
 
     public int StartupDelaySeconds { get; set; } = 20;
 }
