@@ -9,6 +9,7 @@ using GameDiscoveries.BuildingBlocks.Errors;
 using GameDiscoveries.Modules.Community.Configuration;
 using GameDiscoveries.Modules.Community.Domain;
 using GameDiscoveries.Modules.Xp.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -52,7 +53,7 @@ public sealed class CommunityService(
     IDbConnectionFactory connectionFactory,
     ICacheService cache,
     IOptions<CommunityOptions> optionsAccessor,
-    IXpEngine xpEngine,
+    IServiceScopeFactory serviceScopeFactory,
     IEnumerable<IAchievementActivitySink> achievementSinks,
     ILogger<CommunityService> logger) : ICommunityService, ICommunityGameSignalsService
 {
@@ -455,8 +456,7 @@ public sealed class CommunityService(
         if (isNew)
         {
             // XP is server-authoritative; edits do not re-award.
-            await xpEngine.ProcessRatingCreatedAsync(userId, gameId, ct);
-            await xpEngine.ProcessReviewCreatedAsync(userId, gameId, ct);
+            await AwardReviewXpAsync(userId, gameId, ct);
             foreach (var sink in achievementSinks)
             {
                 await sink.OnRatingCreatedAsync(userId, gameId, ct);
@@ -467,6 +467,14 @@ public sealed class CommunityService(
         await EvaluateAchievementsAsync(userId, ct);
         var (_, items) = await GetReviewsAsync(gameSlug, ct);
         return items.First(i => i.Id == id);
+    }
+
+    private async Task AwardReviewXpAsync(Guid userId, Guid gameId, CancellationToken ct)
+    {
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
+        var xpEngine = scope.ServiceProvider.GetRequiredService<IXpEngine>();
+        await xpEngine.ProcessRatingCreatedAsync(userId, gameId, ct);
+        await xpEngine.ProcessReviewCreatedAsync(userId, gameId, ct);
     }
 
     public async Task DeleteReviewAsync(Guid userId, Guid reviewId, bool isMod, CancellationToken ct = default)
