@@ -281,10 +281,10 @@ BEGIN
     SET comment_count = c.count,
         updated_at = NOW()
     FROM (
-        SELECT post_id, COUNT(*)::integer AS count
-        FROM community_comments
-        WHERE deleted_at IS NULL AND status = 'published'
-        GROUP BY post_id
+        SELECT cc.post_id, COUNT(*)::integer AS count
+        FROM community_comments cc
+        WHERE cc.deleted_at IS NULL AND cc.status = 'published'
+        GROUP BY cc.post_id
     ) c
     WHERE p.id = c.post_id
       AND p.slug LIKE 'phase22-demo-post-%';
@@ -293,10 +293,10 @@ BEGIN
     SET reaction_count = r.count,
         updated_at = NOW()
     FROM (
-        SELECT target_id, COUNT(*)::integer AS count
-        FROM community_reactions
-        WHERE target_type = 'post'
-        GROUP BY target_id
+        SELECT cr.target_id, COUNT(*)::integer AS count
+        FROM community_reactions cr
+        WHERE cr.target_type = 'post'
+        GROUP BY cr.target_id
     ) r
     WHERE p.id = r.target_id
       AND p.slug LIKE 'phase22-demo-post-%';
