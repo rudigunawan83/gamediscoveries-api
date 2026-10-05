@@ -54,7 +54,6 @@ public sealed class CommunityService(
     ICacheService cache,
     IOptions<CommunityOptions> optionsAccessor,
     IServiceScopeFactory serviceScopeFactory,
-    IEnumerable<IAchievementActivitySink> achievementSinks,
     ILogger<CommunityService> logger) : ICommunityService, ICommunityGameSignalsService
 {
     private readonly CommunityOptions _options = optionsAccessor.Value;
@@ -457,11 +456,6 @@ public sealed class CommunityService(
         {
             // XP is server-authoritative; edits do not re-award.
             await AwardReviewXpAsync(userId, gameId, ct);
-            foreach (var sink in achievementSinks)
-            {
-                await sink.OnRatingCreatedAsync(userId, gameId, ct);
-                await sink.OnReviewCreatedAsync(userId, gameId, ct);
-            }
         }
 
         await EvaluateAchievementsAsync(userId, ct);
