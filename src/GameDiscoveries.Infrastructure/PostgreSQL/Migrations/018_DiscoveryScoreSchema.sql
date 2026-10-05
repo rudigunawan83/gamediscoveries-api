@@ -180,5 +180,5 @@ CREATE INDEX IF NOT EXISTS ix_game_play_sessions_game_valid_ended
     WHERE ended_at IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS ix_analytics_events_game_type_occurred
-    ON analytics_events (game_id, event_type, occurred_at DESC)
+    ON analytics_events (game_id, event_name, occurred_at DESC)
     WHERE game_id IS NOT NULL;
