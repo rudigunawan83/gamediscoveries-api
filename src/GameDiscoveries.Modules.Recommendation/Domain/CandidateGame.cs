@@ -17,5 +17,9 @@ public sealed class CandidateGame
     public double PopularityProxy { get; init; }
     public double EngagementProxy { get; init; }
     public int GlobalPlaySessions { get; init; }
+    public double DiscoveryScore { get; init; }
+    public double TrendingScore { get; init; }
+    public double FreshnessScore { get; init; }
+    public double MomentumScore { get; init; }
     public string SourceBucket { get; init; } = "catalog";
 }

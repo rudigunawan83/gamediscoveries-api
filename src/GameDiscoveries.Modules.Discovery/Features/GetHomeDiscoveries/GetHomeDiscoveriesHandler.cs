@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Dapper;
+using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Caching;
 using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.BuildingBlocks.Ranking;
@@ -12,6 +13,7 @@ public sealed class GetHomeDiscoveriesHandler(
     IDbConnectionFactory connectionFactory,
     ICacheService cache,
     IGameRankingService rankingService,
+    IEnumerable<IDiscoveryRankingProvider> discoveryRankingProviders,
     ILogger<GetHomeDiscoveriesHandler> logger)
 {
     private const string CacheKey = "discoveries:home:v2";
@@ -36,7 +38,11 @@ public sealed class GetHomeDiscoveriesHandler(
         var bestGames = await QueryByFeedAsync(connection, "BestGames", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
         var mostPlayed = await QueryByFeedAsync(connection, "MostPlayed", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
         var exclusiveGames = await QueryByFeedAsync(connection, "ExclusiveGames", rankingService.OrderBySqlClause(GameRankingKind.Featured), 12, cancellationToken);
-        var trending = await QueryTrendingAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Trending), 12, cancellationToken);
+        var trending = await QueryDiscoveryTrendingAsync(connection, 12, cancellationToken);
+        if (trending.Count == 0)
+        {
+            trending = await QueryTrendingAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Trending), 12, cancellationToken);
+        }
 
         if (latest.Count == 0)
         {
@@ -193,6 +199,62 @@ public sealed class GetHomeDiscoveriesHandler(
         var rows = await connection.QueryAsync<GameSummaryRow>(
             new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken));
         return rows.Select(row => row.ToResponse()).ToList();
+    }
+
+    private async Task<IReadOnlyList<GameSummaryResponse>> QueryDiscoveryTrendingAsync(
+        DbConnection connection,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        foreach (var provider in discoveryRankingProviders)
+        {
+            var ids = await provider.GetTrendingGameIdsAsync(limit, cancellationToken);
+            if (ids.Count == 0)
+            {
+                continue;
+            }
+
+            var rows = await connection.QueryAsync<GameSummaryRow>(new CommandDefinition(
+                """
+                SELECT
+                    g.id AS Id,
+                    g.slug AS Slug,
+                    g.title AS Title,
+                    g.description AS Description,
+                    g.thumbnail_url AS ThumbnailUrl,
+                    g.cover_url AS CoverUrl,
+                    g.game_url AS GameUrl,
+                    cat.name AS Category,
+                    g.platform AS Platform,
+                    g.mobile_ready AS MobileReady,
+                    g.published_at AS PublishedAt
+                FROM games g
+                LEFT JOIN LATERAL (
+                    SELECT c.name
+                    FROM game_categories gc
+                    INNER JOIN categories c ON c.id = gc.category_id
+                    WHERE gc.game_id = g.id
+                    ORDER BY c.name
+                    LIMIT 1
+                ) cat ON TRUE
+                WHERE g.status = 'published'
+                  AND g.id = ANY(@Ids)
+                """,
+                new { Ids = ids.ToArray() },
+                cancellationToken: cancellationToken));
+
+            var map = rows.ToDictionary(r => r.Id);
+            var ordered = ids
+                .Where(map.ContainsKey)
+                .Select(id => map[id].ToResponse())
+                .ToList();
+            if (ordered.Count > 0)
+            {
+                return ordered;
+            }
+        }
+
+        return [];
     }
 
     private static async Task<IReadOnlyList<GameSummaryResponse>> QueryTrendingAsync(

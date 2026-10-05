@@ -45,3 +45,6 @@ Desktop.ini
 
 ## Docker
 *.log
+
+# Next.js accidental build artifacts
+.next/

@@ -808,6 +808,41 @@ POST /api/v1/analytics/events
 POST /api/v1/analytics/batch
 ```
 
+## Progress / Gamification (Phase 04)
+
+```http
+GET  /api/v1/me/progress
+GET  /api/v1/me/xp/transactions
+GET  /api/v1/admin/gamification/overview
+GET  /api/v1/admin/users
+GET  /api/v1/admin/users/{userId}
+POST /api/v1/admin/users/{userId}/xp-adjustments
+POST /api/v1/admin/users/{userId}/gamification/reset
+GET  /api/v1/admin/gamification/levels
+GET  /api/v1/admin/audit-logs
+```
+
+See [`docs/LEVEL_PROGRESS.md`](docs/LEVEL_PROGRESS.md), [`docs/XP_ENGINE.md`](docs/XP_ENGINE.md), [`docs/MISSIONS.md`](docs/MISSIONS.md), and [`docs/STREAKS.md`](docs/STREAKS.md).
+
+## Missions (Phase 05)
+
+```http
+GET  /api/v1/me/missions
+GET  /api/v1/me/missions/history
+GET  /api/v1/admin/gamification/missions/templates
+GET  /api/v1/admin/gamification/missions/analytics
+```
+
+## Streaks (Phase 06)
+
+```http
+GET  /api/v1/me/streak
+GET  /api/v1/me/streak/history
+GET  /api/v1/admin/gamification/streaks
+POST /api/v1/admin/users/{userId}/streak/freeze
+POST /api/v1/admin/users/{userId}/streak/reset
+```
+
 ---
 
 # 📦 Response Format

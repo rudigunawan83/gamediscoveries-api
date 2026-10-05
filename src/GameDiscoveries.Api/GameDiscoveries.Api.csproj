@@ -40,6 +40,12 @@
     <ProjectReference Include="..\GameDiscoveries.Modules.Advertising\GameDiscoveries.Modules.Advertising.csproj" />
     <ProjectReference Include="..\GameDiscoveries.Modules.Administration\GameDiscoveries.Modules.Administration.csproj" />
     <ProjectReference Include="..\GameDiscoveries.Modules.Community\GameDiscoveries.Modules.Community.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Xp\GameDiscoveries.Modules.Xp.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Missions\GameDiscoveries.Modules.Missions.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Streaks\GameDiscoveries.Modules.Streaks.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Achievements\GameDiscoveries.Modules.Achievements.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.DiscoveryScore\GameDiscoveries.Modules.DiscoveryScore.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Leaderboards\GameDiscoveries.Modules.Leaderboards.csproj" />
   </ItemGroup>
 
 </Project>

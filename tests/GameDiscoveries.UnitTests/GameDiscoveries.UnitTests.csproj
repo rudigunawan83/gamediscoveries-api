@@ -17,13 +17,20 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" />
   </ItemGroup>
 
-  <ItemGroup>
+    <ItemGroup>
     <ProjectReference Include="..\..\src\GameDiscoveries.BuildingBlocks\GameDiscoveries.BuildingBlocks.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Infrastructure\GameDiscoveries.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Catalog\GameDiscoveries.Modules.Catalog.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Users\GameDiscoveries.Modules.Users.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Recommendation\GameDiscoveries.Modules.Recommendation.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Community\GameDiscoveries.Modules.Community.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Analytics\GameDiscoveries.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Xp\GameDiscoveries.Modules.Xp.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Missions\GameDiscoveries.Modules.Missions.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Streaks\GameDiscoveries.Modules.Streaks.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Achievements\GameDiscoveries.Modules.Achievements.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.DiscoveryScore\GameDiscoveries.Modules.DiscoveryScore.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Leaderboards\GameDiscoveries.Modules.Leaderboards.csproj" />
   </ItemGroup>
 
 </Project>

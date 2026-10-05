@@ -4,11 +4,13 @@ public sealed class RecommendationOptions
 {
     public const string SectionName = "Recommendation";
 
-    public string AlgorithmVersion { get; set; } = "v1";
+    public string AlgorithmVersion { get; set; } = "PERSONALIZED_V1";
     public int DefaultLimit { get; set; } = 20;
-    public int CandidateLimit { get; set; } = 150;
-    public int MaxSameCategoryInTop10 { get; set; } = 3;
-    public double ExplorationRatio { get; set; } = 0.08;
+    public int CandidateLimit { get; set; } = 200;
+    public int MaxSameCategoryInTop10 { get; set; } = 4;
+    public double ExplorationRatio { get; set; } = 0.10;
+    public double MmrLambda { get; set; } = 0.80;
+    public int ColdStartThreshold { get; set; } = 3;
 
     public RecommendationWeights Weights { get; set; } = new();
     public ContentSimilarityWeights ContentWeights { get; set; } = new();

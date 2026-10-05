@@ -16,16 +16,14 @@ public sealed class RecommendationEngineTests
     {
         var repo = new FakeRecommendationRepository();
         var cache = new RecommendationCache(new InMemoryCache(), Options.Create(new RecommendationOptions()));
-        var engine = new RecommendationEngine(
-            repo,
-            cache,
-            Options.Create(new RecommendationOptions()),
-            NullLogger<RecommendationEngine>.Instance);
+        var engine = CreateEngine(repo, cache);
 
         var result = await engine.GetAsync(RecommendationType.ForYou, userId: null, seedGameId: null, limit: 8);
         result.Items.Should().NotBeEmpty();
-        result.AlgorithmVersion.Should().Be("v1");
+        result.AlgorithmVersion.Should().Be("PERSONALIZED_V1");
         result.Type.Should().Be("for-you");
+        result.Strategy.Should().NotBeNullOrWhiteSpace();
+        result.RecommendationRequestId.Should().NotBeNull();
         result.Items.Select(i => i.Game.Id).Should().OnlyHaveUniqueItems();
         result.Items.Should().OnlyContain(i => !string.IsNullOrWhiteSpace(i.Reason));
     }
@@ -46,14 +44,67 @@ public sealed class RecommendationEngineTests
     {
         var repo = new FakeRecommendationRepository();
         var seedId = repo.Seed.Id;
-        var engine = new RecommendationEngine(
+        var engine = CreateEngine(
             repo,
-            new RecommendationCache(new InMemoryCache(), Options.Create(new RecommendationOptions())),
-            Options.Create(new RecommendationOptions()),
-            NullLogger<RecommendationEngine>.Instance);
+            new RecommendationCache(new InMemoryCache(), Options.Create(new RecommendationOptions())));
 
         var result = await engine.GetAsync(RecommendationType.SimilarGames, null, seedId, 10);
         result.Items.Should().NotContain(i => i.Game.Id == seedId);
+    }
+
+    [Fact]
+    public async Task Home_Returns_Non_Empty_Sections()
+    {
+        var engine = CreateEngine(
+            new FakeRecommendationRepository(),
+            new RecommendationCache(new InMemoryCache(), Options.Create(new RecommendationOptions())));
+
+        var home = await engine.GetHomeAsync(userId: null, limitPerSection: 6);
+        home.Sections.Should().NotBeEmpty();
+        home.AlgorithmVersion.Should().Be("PERSONALIZED_V1");
+        home.RecommendationRequestId.Should().NotBe(Guid.Empty);
+    }
+
+    private static RecommendationEngine CreateEngine(
+        IRecommendationRepository repo,
+        IRecommendationCache cache)
+        => new(
+            repo,
+            cache,
+            new NoOpTrackingStore(),
+            new RuleBasedRecommendationModel(),
+            Options.Create(new RecommendationOptions()),
+            NullLogger<RecommendationEngine>.Instance);
+
+    private sealed class NoOpTrackingStore : IRecommendationTrackingStore
+    {
+        public Task<Guid> CreateRequestAsync(
+            Guid? userId,
+            Guid? anonymousId,
+            string strategy,
+            string section,
+            int profileLevel,
+            int candidateCount,
+            int resultCount,
+            string algorithmVersion,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Guid.NewGuid());
+
+        public Task RecordImpressionAsync(
+            RecommendationImpressionRequest request,
+            Guid? userId,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task RecordFeedbackAsync(
+            Guid gameId,
+            RecommendationFeedbackRequest request,
+            Guid? userId,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<AdminRecommendationOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new AdminRecommendationOverviewDto(0, 0, 0, 0, 0, 0, null));
     }
 
     private sealed class InMemoryCache : ICacheService
@@ -91,7 +142,9 @@ public sealed class RecommendationEngineTests
             Orientation = "landscape",
             MobileReady = true,
             PublishedAt = DateTimeOffset.UtcNow.AddDays(-20),
-            PopularityProxy = 3
+            PopularityProxy = 3,
+            DiscoveryScore = 70,
+            TrendingScore = 60
         };
 
         private List<CandidateGame> Catalog()
@@ -111,6 +164,9 @@ public sealed class RecommendationEngineTests
                     PublishedAt = DateTimeOffset.UtcNow.AddDays(-i),
                     PopularityProxy = i % 5,
                     EngagementProxy = i * 10,
+                    DiscoveryScore = 80 - i,
+                    TrendingScore = 50 + (i % 10),
+                    FreshnessScore = Math.Max(0, 100 - (i * 3)),
                     SourceBucket = i % 7 == 0 ? "hidden" : "catalog"
                 });
             }

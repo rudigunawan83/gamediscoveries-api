@@ -2,11 +2,13 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Text.Json;
 using Dapper;
+using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Caching;
 using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.BuildingBlocks.Errors;
 using GameDiscoveries.Modules.Community.Configuration;
 using GameDiscoveries.Modules.Community.Domain;
+using GameDiscoveries.Modules.Xp.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -50,6 +52,8 @@ public sealed class CommunityService(
     IDbConnectionFactory connectionFactory,
     ICacheService cache,
     IOptions<CommunityOptions> optionsAccessor,
+    IXpEngine xpEngine,
+    IEnumerable<IAchievementActivitySink> achievementSinks,
     ILogger<CommunityService> logger) : ICommunityService, ICommunityGameSignalsService
 {
     private readonly CommunityOptions _options = optionsAccessor.Value;
@@ -427,7 +431,8 @@ public sealed class CommunityService(
         var id = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
             "SELECT id FROM game_reviews WHERE game_id = @GameId AND user_id = @UserId",
             new { GameId = gameId, UserId = userId }, cancellationToken: ct));
-        if (id is null)
+        var isNew = id is null;
+        if (isNew)
         {
             id = Guid.NewGuid();
             await connection.ExecuteAsync(new CommandDefinition("""
@@ -447,6 +452,18 @@ public sealed class CommunityService(
         }
 
         await cache.RemoveAsync($"community:review-summary:{gameId}", ct);
+        if (isNew)
+        {
+            // XP is server-authoritative; edits do not re-award.
+            await xpEngine.ProcessRatingCreatedAsync(userId, gameId, ct);
+            await xpEngine.ProcessReviewCreatedAsync(userId, gameId, ct);
+            foreach (var sink in achievementSinks)
+            {
+                await sink.OnRatingCreatedAsync(userId, gameId, ct);
+                await sink.OnReviewCreatedAsync(userId, gameId, ct);
+            }
+        }
+
         await EvaluateAchievementsAsync(userId, ct);
         var (_, items) = await GetReviewsAsync(gameSlug, ct);
         return items.First(i => i.Id == id);

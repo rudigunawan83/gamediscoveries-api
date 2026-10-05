@@ -14,7 +14,9 @@ public sealed class RecommendationModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
+        services.AddScoped<IRecommendationTrackingStore, RecommendationTrackingStore>();
         services.AddScoped<IRecommendationCache, RecommendationCache>();
+        services.AddSingleton<IRecommendationModel, RuleBasedRecommendationModel>();
         services.AddScoped<IRecommendationEngine, RecommendationEngine>();
     }
 

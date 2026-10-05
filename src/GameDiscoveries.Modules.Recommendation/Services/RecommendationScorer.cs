@@ -17,25 +17,49 @@ public static class RecommendationScorer
         var preference = ComputePreferenceScore(game, profile);
         var behavior = ComputeBehaviorScore(game, profile, options.TimeDecay, now);
         var popularity = NormalizeProxy(game.PopularityProxy, 8);
-        var freshness = ComputeFreshness(game.PublishedAt, now);
+        var freshness = game.FreshnessScore > 0
+            ? Clamp01(game.FreshnessScore / 100d)
+            : ComputeFreshness(game.PublishedAt, now);
         var engagement = NormalizeProxy(game.EngagementProxy, 3600);
         var exploration = ComputeExploration(game, popularity);
+        var discovery = Clamp01(game.DiscoveryScore / 100d);
+        var trending = Clamp01(game.TrendingScore / 100d);
+        var novelty = ComputeNovelty(game, profile, freshness);
 
         if (type is RecommendationType.HiddenGems)
         {
             popularity = Math.Max(0, 1 - popularity);
         }
 
+        // Phase 09 blend: keep legacy weights but inject Discovery/Trending/Novelty.
         var weights = options.Weights;
+        var personalRelevance = Clamp01((preference * 0.55) + (behavior * 0.30) + (content * 0.15));
         var final =
-            (content * weights.Content)
-            + (preference * weights.Preference)
-            + (behavior * weights.Behavior)
-            + (popularity * weights.Popularity)
-            + (freshness * weights.Freshness)
-            + (engagement * weights.Engagement)
-            + (exploration * weights.Exploration)
-            + (0 * weights.Diversity);
+            (personalRelevance * 0.30)
+            + (content * 0.15)
+            + (preference * 0.10)
+            + (discovery * 0.10)
+            + (trending * 0.05)
+            + (freshness * 0.05)
+            + (novelty * 0.05)
+            + (engagement * 0.05)
+            + (exploration * 0.05)
+            + (behavior * 0.05)
+            + (popularity * weights.Popularity * 0.5);
+
+        // Soft repeat-play penalty (favorites less penalized)
+        var lastPlayed = profile.Signals
+            .Where(s => s.GameId == game.Id && s.Kind is "played" or "completed")
+            .Select(s => (DateTimeOffset?)s.At)
+            .OrderByDescending(x => x)
+            .FirstOrDefault();
+        var isFavorite = profile.FavoriteGameIds.Contains(game.Id);
+        final = Clamp01(final * (1 - PreferenceSignals.RepeatPlayPenalty(lastPlayed, now, isFavorite)));
+
+        if (profile.DislikedGameIds.Contains(game.Id))
+        {
+            final = 0;
+        }
 
         if (type is RecommendationType.HiddenGems)
         {
@@ -51,10 +75,25 @@ public static class RecommendationScorer
             Freshness = Clamp01(freshness),
             Engagement = Clamp01(engagement),
             Exploration = Clamp01(exploration),
+            Discovery = discovery,
+            Trending = trending,
+            Novelty = novelty,
             Diversity = 0,
             Final = Clamp01(final),
             Reason = string.Empty
         };
+    }
+
+    private static double ComputeNovelty(
+        CandidateGame game,
+        UserPreferenceProfile profile,
+        double freshness)
+    {
+        var dominant = profile.PreferredCategories.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).FirstOrDefault();
+        var outside = !string.IsNullOrWhiteSpace(dominant)
+                      && !string.Equals(game.Category, dominant, StringComparison.OrdinalIgnoreCase);
+        var notPlayed = !profile.PlayedGameIds.Contains(game.Id);
+        return Clamp01((outside ? 0.45 : 0.15) + (notPlayed ? 0.25 : 0) + (freshness * 0.30));
     }
 
     public static double ComputeContentScore(

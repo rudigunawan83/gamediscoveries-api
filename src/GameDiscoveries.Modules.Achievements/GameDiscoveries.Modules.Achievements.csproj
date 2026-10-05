@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GameDiscoveries.BuildingBlocks\GameDiscoveries.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Analytics\GameDiscoveries.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Xp\GameDiscoveries.Modules.Xp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.89" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

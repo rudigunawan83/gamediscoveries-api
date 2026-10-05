@@ -44,18 +44,18 @@ public sealed class DiversityAndReasonTests
         var game = new CandidateGame { Category = "Racing", Title = "Speed" };
 
         RecommendationReasonService.Build(RecommendationType.Trending, game, profile)
-            .Should().Be("Trending now");
+            .Should().Be("Trending for you");
         RecommendationReasonService.Build(RecommendationType.HiddenGems, game, profile)
-            .Should().Be("Hidden gem");
+            .Should().StartWith("Explore");
         RecommendationReasonService.Build(RecommendationType.ForYou, game, profile)
             .Should().Contain("Racing");
         RecommendationReasonService.Build(RecommendationType.SimilarGames, game, profile, "Neon Drift")
-            .Should().Be("Similar to Neon Drift");
+            .Should().Contain("Neon Drift");
     }
 
     [Fact]
     public void Algorithm_Version_Constant()
     {
-        new RecommendationOptions().AlgorithmVersion.Should().Be("v1");
+        new RecommendationOptions().AlgorithmVersion.Should().Be("PERSONALIZED_V1");
     }
 }

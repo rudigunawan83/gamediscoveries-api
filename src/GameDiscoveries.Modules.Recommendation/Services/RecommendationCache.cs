@@ -11,6 +11,7 @@ public interface IRecommendationCache
     TimeSpan GetTtl(RecommendationType type);
     Task<RecommendationResponse?> GetAsync(string key, CancellationToken cancellationToken = default);
     Task SetAsync(string key, RecommendationResponse value, TimeSpan ttl, CancellationToken cancellationToken = default);
+    Task InvalidateUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }
 
 public sealed class RecommendationCache(
@@ -45,4 +46,23 @@ public sealed class RecommendationCache(
 
     public Task SetAsync(string key, RecommendationResponse value, TimeSpan ttl, CancellationToken cancellationToken = default)
         => cache.SetAsync(key, value, ttl, cancellationToken);
+
+    public async Task InvalidateUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        // Remove common personalized keys; remaining entries expire via TTL.
+        foreach (var type in new[]
+                 {
+                     RecommendationType.ForYou,
+                     RecommendationType.BecauseYouPlayed,
+                     RecommendationType.Trending,
+                     RecommendationType.NewDiscoveries,
+                     RecommendationType.HiddenGems
+                 })
+        {
+            foreach (var limit in new[] { 12, 20 })
+            {
+                await cache.RemoveAsync(BuildKey(type, userId, null, limit), cancellationToken);
+            }
+        }
+    }
 }

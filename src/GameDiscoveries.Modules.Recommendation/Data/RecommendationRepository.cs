@@ -70,6 +70,10 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
                 FROM user_play_history h2
                 WHERE h2.game_id = g.id
             ), 0) AS GlobalPlaySessions,
+            COALESCE(ds.score, 0)::float8 AS DiscoveryScore,
+            COALESCE(ds.trending_score, 0)::float8 AS TrendingScore,
+            COALESCE(ds.freshness_score, 0)::float8 AS FreshnessScore,
+            COALESCE(ds.momentum_score, 0)::float8 AS MomentumScore,
             COALESCE((
                 SELECT string_agg(DISTINCT t.tag, '|')
                 FROM (
@@ -85,6 +89,7 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
 
     private const string PublishedFilter = """
         FROM games g
+        LEFT JOIN game_discovery_scores ds ON ds.game_id = g.id
         LEFT JOIN LATERAL (
             SELECT c.name
             FROM game_categories gc
@@ -183,6 +188,92 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
             ? 0.7
             : 0.3;
 
+        var disliked = new List<Guid>();
+        try
+        {
+            disliked = (await connection.QueryAsync<Guid>(new CommandDefinition(
+                """
+                SELECT DISTINCT game_id
+                FROM recommendation_feedback
+                WHERE user_id = @UserId
+                  AND feedback_type IN ('DISLIKE', 'NOT_INTERESTED')
+                """,
+                new { UserId = userId },
+                cancellationToken: cancellationToken))).ToList();
+        }
+        catch
+        {
+            // ignore until migration applied
+        }
+
+        try
+        {
+            var lowRated = (await connection.QueryAsync<Guid>(new CommandDefinition(
+                """
+                SELECT DISTINCT game_id FROM game_reviews
+                WHERE user_id = @UserId AND rating <= 2 AND status = 'published' AND deleted_at IS NULL
+                """,
+                new { UserId = userId },
+                cancellationToken: cancellationToken))).ToList();
+
+            foreach (var id in lowRated.Where(id => !disliked.Contains(id)))
+            {
+                disliked.Add(id);
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        var totalInteractions = favorites.Count + history.Count;
+        var profileLevel = PreferenceSignals.ResolveProfileLevel(totalInteractions);
+
+        // Persist snapshot (best-effort; ignore if migration not applied yet)
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                """
+                INSERT INTO user_recommendation_profiles (
+                    id, user_id, preferred_categories_json, preferred_tags_json,
+                    category_scores_json, tag_scores_json, preferred_game_ids_json,
+                    disliked_game_ids_json, total_interactions, profile_level, profile_version,
+                    last_calculated_at, created_at, updated_at)
+                VALUES (
+                    @Id, @UserId, @Categories::jsonb, @Tags::jsonb,
+                    @Categories::jsonb, @Tags::jsonb, @PreferredGames::jsonb,
+                    @Disliked::jsonb, @Total, @Level, 1,
+                    (NOW() AT TIME ZONE 'utc'), (NOW() AT TIME ZONE 'utc'), (NOW() AT TIME ZONE 'utc'))
+                ON CONFLICT (user_id) DO UPDATE SET
+                    preferred_categories_json = EXCLUDED.preferred_categories_json,
+                    preferred_tags_json = EXCLUDED.preferred_tags_json,
+                    category_scores_json = EXCLUDED.category_scores_json,
+                    tag_scores_json = EXCLUDED.tag_scores_json,
+                    preferred_game_ids_json = EXCLUDED.preferred_game_ids_json,
+                    disliked_game_ids_json = EXCLUDED.disliked_game_ids_json,
+                    total_interactions = EXCLUDED.total_interactions,
+                    profile_level = EXCLUDED.profile_level,
+                    last_calculated_at = EXCLUDED.last_calculated_at,
+                    updated_at = (NOW() AT TIME ZONE 'utc')
+                """,
+                new
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Categories = System.Text.Json.JsonSerializer.Serialize(categories),
+                    Tags = System.Text.Json.JsonSerializer.Serialize(tags),
+                    PreferredGames = System.Text.Json.JsonSerializer.Serialize(favorites.Select(f => f.GameId)),
+                    Disliked = System.Text.Json.JsonSerializer.Serialize(disliked),
+                    Total = totalInteractions,
+                    Level = profileLevel
+                },
+                cancellationToken: cancellationToken));
+        }
+        catch
+        {
+            // Table may not exist before migration; profile still works in-memory.
+        }
+
         return new UserPreferenceProfile
         {
             UserId = userId,
@@ -193,8 +284,11 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
             MultiplayerPreference = multiplayerPref,
             FavoriteGameIds = favorites.Select(f => f.GameId).Distinct().ToList(),
             PlayedGameIds = history.Select(h => h.GameId).Distinct().ToList(),
+            DislikedGameIds = disliked,
             RecentSeedGameIds = history.Select(h => h.GameId).Distinct().Take(5).ToList(),
             Signals = signals,
+            TotalInteractions = totalInteractions,
+            ProfileLevel = profileLevel,
             LastUpdatedAt = DateTimeOffset.UtcNow
         };
     }
@@ -409,6 +503,10 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
         public double PopularityProxy { get; init; }
         public double EngagementProxy { get; init; }
         public int GlobalPlaySessions { get; init; }
+        public double DiscoveryScore { get; init; }
+        public double TrendingScore { get; init; }
+        public double FreshnessScore { get; init; }
+        public double MomentumScore { get; init; }
         public string? TagsJoined { get; init; }
 
         public CandidateGame ToCandidate(string bucket) => new()
@@ -427,6 +525,10 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
             PopularityProxy = PopularityProxy,
             EngagementProxy = EngagementProxy,
             GlobalPlaySessions = GlobalPlaySessions,
+            DiscoveryScore = DiscoveryScore,
+            TrendingScore = TrendingScore,
+            FreshnessScore = FreshnessScore,
+            MomentumScore = MomentumScore,
             Tags = SplitTags(TagsJoined),
             SourceBucket = bucket
         };

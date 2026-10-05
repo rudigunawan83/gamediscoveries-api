@@ -11,6 +11,12 @@ using GameDiscoveries.Infrastructure;
 using GameDiscoveries.Modules.Administration;
 using GameDiscoveries.Modules.Advertising;
 using GameDiscoveries.Modules.Analytics;
+using GameDiscoveries.Modules.Achievements;
+using GameDiscoveries.Modules.Xp;
+using GameDiscoveries.Modules.Missions;
+using GameDiscoveries.Modules.Streaks;
+using GameDiscoveries.Modules.DiscoveryScore;
+using GameDiscoveries.Modules.Leaderboards;
 using GameDiscoveries.Modules.Catalog;
 using GameDiscoveries.Modules.Community;
 using GameDiscoveries.Modules.Community.Configuration;
@@ -73,6 +79,12 @@ public static class DependencyInjection
         services.AddUsersModule();
         services.AddFavoritesModule();
         services.AddAnalyticsModule();
+        services.AddXpModule();
+        services.AddMissionsModule();
+        services.AddStreaksModule();
+        services.AddAchievementsModule();
+        services.AddDiscoveryScoreModule();
+        services.AddLeaderboardsModule();
         services.AddDeveloperModule();
         services.AddAdvertisingModule();
         services.AddAdministrationModule();
@@ -135,6 +147,9 @@ public static class DependencyInjection
 
             options.AddPolicy(Policies.AdminOnly, policy =>
                 policy.RequireRole(Roles.Admin, Roles.SuperAdmin));
+
+            options.AddPolicy(Policies.SuperAdminOnly, policy =>
+                policy.RequireRole(Roles.SuperAdmin));
 
             options.AddPolicy(Policies.DeveloperOnly, policy =>
                 policy.RequireRole(Roles.Developer, Roles.Admin, Roles.SuperAdmin));

@@ -1,12 +1,12 @@
 using GameDiscoveries.BuildingBlocks.Authentication;
-using GameDiscoveries.BuildingBlocks.Configuration;
+using GameDiscoveries.BuildingBlocks.Authorization;
 using GameDiscoveries.BuildingBlocks.Errors;
+using GameDiscoveries.Modules.Recommendation.Data;
 using GameDiscoveries.Modules.Recommendation.Domain;
 using GameDiscoveries.Modules.Recommendation.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Options;
 
 namespace GameDiscoveries.Modules.Recommendation.Features;
 
@@ -29,7 +29,23 @@ public static class RecommendationsEndpoints
             .WithName("GetRecommendations")
             .WithTags("Recommendations")
             .AllowAnonymous()
+            .RequireRateLimiting("public")
             .Produces<ApiResponse<RecommendationResponse>>(StatusCodes.Status200OK);
+
+        endpoints.MapGet("/api/v1/recommendations/home", async (
+                int? limit,
+                IRecommendationEngine engine,
+                ICurrentUser currentUser,
+                CancellationToken cancellationToken) =>
+            {
+                var userId = TryGetUserId(currentUser);
+                var result = await engine.GetHomeAsync(userId, limit ?? 12, cancellationToken);
+                return Results.Ok(ApiResponse<RecommendationHomeResponse>.Ok(result));
+            })
+            .WithName("GetRecommendationHome")
+            .WithTags("Recommendations")
+            .AllowAnonymous()
+            .RequireRateLimiting("public");
 
         MapTyped(endpoints, "/api/v1/recommendations/for-you", RecommendationType.ForYou, "GetForYouRecommendations");
         MapTyped(endpoints, "/api/v1/recommendations/because-you-played", RecommendationType.BecauseYouPlayed, "GetBecauseYouPlayedRecommendations");
@@ -57,7 +73,63 @@ public static class RecommendationsEndpoints
             .WithName("GetSimilarGameRecommendations")
             .WithTags("Recommendations")
             .AllowAnonymous()
+            .RequireRateLimiting("public")
             .Produces<ApiResponse<RecommendationResponse>>(StatusCodes.Status200OK);
+
+        endpoints.MapPost("/api/v1/recommendations/{gameId:guid}/feedback", async (
+                Guid gameId,
+                RecommendationFeedbackRequest request,
+                IRecommendationTrackingStore tracking,
+                IRecommendationCache cache,
+                ICurrentUser currentUser,
+                CancellationToken cancellationToken) =>
+            {
+                var type = request.FeedbackType?.Trim().ToUpperInvariant();
+                if (type is not ("LIKE" or "DISLIKE" or "NOT_INTERESTED" or "ALREADY_PLAYED" or "MORE_LIKE_THIS"))
+                {
+                    throw new ValidationException("Invalid feedback type.");
+                }
+
+                var userId = TryGetUserId(currentUser);
+                await tracking.RecordFeedbackAsync(gameId, request with { FeedbackType = type }, userId, cancellationToken);
+                if (userId is Guid uid)
+                {
+                    await cache.InvalidateUserAsync(uid, cancellationToken);
+                }
+
+                return Results.Ok(ApiResponse<object>.Ok(new { recorded = true }));
+            })
+            .WithName("PostRecommendationFeedback")
+            .WithTags("Recommendations")
+            .AllowAnonymous()
+            .RequireRateLimiting("public");
+
+        endpoints.MapPost("/api/v1/recommendations/impressions", async (
+                RecommendationImpressionRequest request,
+                IRecommendationTrackingStore tracking,
+                ICurrentUser currentUser,
+                CancellationToken cancellationToken) =>
+            {
+                var userId = TryGetUserId(currentUser);
+                await tracking.RecordImpressionAsync(request, userId, cancellationToken);
+                return Results.Ok(ApiResponse<object>.Ok(new { recorded = true }));
+            })
+            .WithName("PostRecommendationImpression")
+            .WithTags("Recommendations")
+            .AllowAnonymous()
+            .RequireRateLimiting("public");
+
+        endpoints.MapGet("/api/v1/admin/recommendations/overview", async (
+                IRecommendationTrackingStore tracking,
+                CancellationToken cancellationToken) =>
+            {
+                var result = await tracking.GetOverviewAsync(cancellationToken);
+                return Results.Ok(ApiResponse<AdminRecommendationOverviewDto>.Ok(result));
+            })
+            .WithName("AdminRecommendationOverview")
+            .WithTags("Administration", "Recommendations")
+            .RequireAuthorization(Policies.ModeratorOrAdmin)
+            .RequireRateLimiting("public");
 
         endpoints.MapGet("/api/v1/admin/recommendations/debug", async (
                 string? type,
@@ -65,23 +137,17 @@ public static class RecommendationsEndpoints
                 Guid? gameId,
                 int? limit,
                 IRecommendationEngine engine,
-                IOptions<GameFeedSyncOptions> syncOptions,
-                HttpRequest httpRequest,
                 CancellationToken cancellationToken) =>
             {
-                if (!IsAdminAuthorized(httpRequest, syncOptions.Value))
-                {
-                    return Results.Unauthorized();
-                }
-
                 var parsed = ParseType(type) ?? RecommendationType.ForYou;
                 var result = await engine.GetDebugAsync(parsed, userId, gameId, limit, cancellationToken);
                 return Results.Ok(ApiResponse<RecommendationDebugResponse>.Ok(result));
             })
             .WithName("DebugRecommendations")
             .WithTags("Administration")
-            .Produces<ApiResponse<RecommendationDebugResponse>>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status401Unauthorized);
+            .RequireAuthorization(Policies.ModeratorOrAdmin)
+            .RequireRateLimiting("public")
+            .Produces<ApiResponse<RecommendationDebugResponse>>(StatusCodes.Status200OK);
 
         return endpoints;
     }
@@ -131,15 +197,4 @@ public static class RecommendationsEndpoints
             null or "" => null,
             _ => null
         };
-
-    private static bool IsAdminAuthorized(HttpRequest request, GameFeedSyncOptions options)
-    {
-        if (string.IsNullOrWhiteSpace(options.AdminApiKey))
-        {
-            return false;
-        }
-
-        return request.Headers.TryGetValue("X-GameDiscoveries-Admin-Key", out var provided)
-               && string.Equals(provided.ToString(), options.AdminApiKey, StringComparison.Ordinal);
-    }
 }

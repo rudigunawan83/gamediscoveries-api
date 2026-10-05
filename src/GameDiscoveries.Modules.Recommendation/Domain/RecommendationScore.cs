@@ -10,8 +10,12 @@ public sealed class RecommendationScore
     public double Engagement { get; init; }
     public double Exploration { get; init; }
     public double Diversity { get; init; }
+    public double Discovery { get; init; }
+    public double Trending { get; init; }
+    public double Novelty { get; init; }
     public double Final { get; init; }
     public string Reason { get; init; } = string.Empty;
+    public string ReasonType { get; init; } = "RECOMMENDED";
 }
 
 public sealed class ScoredCandidate

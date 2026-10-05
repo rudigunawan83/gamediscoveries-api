@@ -13,10 +13,13 @@ public sealed class UserPreferenceProfile
     public double MobilePreference { get; init; }
     public IReadOnlyList<Guid> FavoriteGameIds { get; init; } = [];
     public IReadOnlyList<Guid> PlayedGameIds { get; init; } = [];
+    public IReadOnlyList<Guid> DislikedGameIds { get; init; } = [];
     public IReadOnlyList<Guid> RecentSeedGameIds { get; init; } = [];
     public IReadOnlyList<UserSignal> Signals { get; init; } = [];
+    public int TotalInteractions { get; init; }
+    public int ProfileLevel { get; init; }
     public DateTimeOffset LastUpdatedAt { get; init; } = DateTimeOffset.UtcNow;
-    public bool IsColdStart => FavoriteGameIds.Count == 0 && PlayedGameIds.Count == 0 && Signals.Count == 0;
+    public bool IsColdStart => ProfileLevel <= 1 && FavoriteGameIds.Count == 0 && PlayedGameIds.Count < 3;
 }
 
 public sealed record UserSignal(
