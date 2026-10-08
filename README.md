@@ -30,6 +30,32 @@ The API is designed as a **Modular Monolith** using **Vertical Slice Architectur
 
 The initial goal is to keep the system simple enough to develop and operate quickly while maintaining clear module boundaries for future horizontal scaling and selective service extraction.
 
+## 📱 Mobile Companion Notes
+
+This API is also the source of truth for the native Flutter mobile application in `gamediscoveries-app`.
+
+Current mobile integration principles:
+
+- backend remains authoritative for XP, level, streak, missions, achievements, leaderboard, recommendations, and valid play sessions
+- Flutter is responsible for UI, navigation, local cache, secure token storage, analytics batching, and WebView lifecycle handling
+- HTML5 games may run in WebView, but game business rules must stay server-side
+
+Phase 0 mobile audit outputs:
+
+- `../gamediscoveries-app/docs/backend-api-map.md`
+- `../gamediscoveries-app/docs/mobile-architecture.md`
+
+Important implementation notes discovered during audit:
+
+- `POST /api/v1/auth/login`, `POST /api/v1/auth/register`, `POST /api/v1/auth/logout`, and `GET /api/v1/users/me` are confirmed
+- `GET /api/v1/games`, `GET /api/v1/games/{slug}`, and `GET /api/v1/discoveries/home` are confirmed for catalog/discovery bootstrapping
+- play-session lifecycle endpoints under `/api/v1/games/.../sessions/...` are confirmed and suitable for native mobile session orchestration
+- gamification endpoints for progress, XP, missions, streaks, achievements, leaderboards, recommendations, and community are confirmed
+- frontend references `GET /api/v1/search/games`, but that endpoint was not located during the source audit and should be treated as unconfirmed until verified
+- login response may include a `refreshToken`, but a refresh-token endpoint was not located during the source audit and should not be assumed by clients
+
+For mobile-safe development, prefer the audited endpoints above over planned or speculative endpoints.
+
 ---
 
 # 🎯 Product Philosophy
