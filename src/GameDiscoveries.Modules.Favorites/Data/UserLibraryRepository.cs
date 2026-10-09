@@ -15,6 +15,12 @@ public interface IUserLibraryRepository
     Task<bool> RemoveFavoriteAsync(Guid userId, Guid gameId, CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<HistoryItemResponse> Items, long Total)> ListHistoryAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task UpsertHistoryAsync(Guid userId, Guid gameId, int durationSeconds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Folds a server-ended play session into the player's history once.
+    /// Returns false when the session is not ENDED, not owned by the user, or already recorded.
+    /// </summary>
+    Task<bool> RecordEndedSessionAsync(Guid userId, string sessionId, CancellationToken cancellationToken = default);
 }
 
 public sealed class UserLibraryRepository(IDbConnectionFactory connectionFactory) : IUserLibraryRepository
@@ -145,6 +151,9 @@ public sealed class UserLibraryRepository(IDbConnectionFactory connectionFactory
                 h.game_id AS GameId,
                 h.played_at AS PlayedAt,
                 h.duration_seconds AS DurationSeconds,
+                h.total_play_seconds AS TotalPlaySeconds,
+                h.play_count AS PlayCount,
+                h.last_platform AS LastPlatform,
                 g.slug AS Slug,
                 g.title AS Title,
                 g.description AS Description,
@@ -193,6 +202,37 @@ public sealed class UserLibraryRepository(IDbConnectionFactory connectionFactory
                 cancellationToken: cancellationToken));
     }
 
+    public async Task<bool> RecordEndedSessionAsync(Guid userId, string sessionId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = """
+            WITH claimed AS (
+                UPDATE game_play_sessions
+                SET history_recorded_at = (NOW() AT TIME ZONE 'utc')
+                WHERE session_id = @SessionId
+                  AND user_id = @UserId
+                  AND status = 'ENDED'
+                  AND history_recorded_at IS NULL
+                RETURNING game_id, active_seconds, platform, COALESCE(ended_at, NOW() AT TIME ZONE 'utc') AS ended_at
+            )
+            INSERT INTO user_play_history (id, user_id, game_id, played_at, duration_seconds, total_play_seconds, play_count, last_platform)
+            SELECT @Id, @UserId, c.game_id, c.ended_at, c.active_seconds, c.active_seconds, 1, c.platform
+            FROM claimed c
+            ON CONFLICT (user_id, game_id) DO UPDATE
+            SET played_at = GREATEST(user_play_history.played_at, EXCLUDED.played_at),
+                duration_seconds = GREATEST(user_play_history.duration_seconds, EXCLUDED.duration_seconds),
+                total_play_seconds = user_play_history.total_play_seconds + EXCLUDED.total_play_seconds,
+                play_count = user_play_history.play_count + 1,
+                last_platform = EXCLUDED.last_platform;
+            """;
+        var affected = await connection.ExecuteAsync(
+            new CommandDefinition(
+                sql,
+                new { Id = Guid.NewGuid(), UserId = userId, SessionId = sessionId },
+                cancellationToken: cancellationToken));
+        return affected > 0;
+    }
+
     private sealed class FavoriteRow
     {
         public Guid GameId { get; init; }
@@ -223,6 +263,9 @@ public sealed class UserLibraryRepository(IDbConnectionFactory connectionFactory
         public Guid GameId { get; init; }
         public DateTimeOffset PlayedAt { get; init; }
         public int DurationSeconds { get; init; }
+        public long TotalPlaySeconds { get; init; }
+        public int PlayCount { get; init; }
+        public string? LastPlatform { get; init; }
         public string Slug { get; init; } = string.Empty;
         public string Title { get; init; } = string.Empty;
         public string? Description { get; init; }
@@ -239,6 +282,9 @@ public sealed class UserLibraryRepository(IDbConnectionFactory connectionFactory
             GameId,
             PlayedAt,
             DurationSeconds,
+            TotalPlaySeconds,
+            PlayCount,
+            LastPlatform,
             new GameSummaryResponse(
                 GameId, Slug, Title, Description, ThumbnailUrl, CoverUrl, GameUrl,
                 Category, Platform, MobileReady, PublishedAt));

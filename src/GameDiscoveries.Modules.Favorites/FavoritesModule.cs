@@ -1,4 +1,5 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Analytics.Processing;
 using GameDiscoveries.Modules.Favorites.Data;
 using GameDiscoveries.Modules.Favorites.Features;
 using GameDiscoveries.Modules.Favorites.Features.AddFavorite;
@@ -7,6 +8,7 @@ using GameDiscoveries.Modules.Favorites.Features.ListFavorites;
 using GameDiscoveries.Modules.Favorites.Features.ListHistory;
 using GameDiscoveries.Modules.Favorites.Features.RecordHistory;
 using GameDiscoveries.Modules.Favorites.Features.RemoveFavorite;
+using GameDiscoveries.Modules.Favorites.Processing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +27,7 @@ public sealed class FavoritesModule : IModule
         services.AddScoped<RemoveFavoriteHandler>();
         services.AddScoped<ListHistoryHandler>();
         services.AddScoped<RecordHistoryHandler>();
+        services.AddScoped<IAnalyticsEventHandler, GameSessionHistoryEventHandler>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

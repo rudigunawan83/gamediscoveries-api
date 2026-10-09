@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GameDiscoveries.BuildingBlocks\GameDiscoveries.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Analytics\GameDiscoveries.Modules.Analytics.csproj" />
     <ProjectReference Include="..\GameDiscoveries.Modules.Catalog\GameDiscoveries.Modules.Catalog.csproj" />
     <ProjectReference Include="..\GameDiscoveries.Modules.Xp\GameDiscoveries.Modules.Xp.csproj" />
   </ItemGroup>
