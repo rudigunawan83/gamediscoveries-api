@@ -23,6 +23,12 @@ public static class CommunityEndpoints
             return Results.Ok(ApiResponse<object>.Ok(new { items, nextCursor = next }));
         }).WithTags("Community").AllowAnonymous().RequireRateLimiting("public");
 
+        endpoints.MapGet("/api/v1/community/posts", async (string? sort, string? q, string? cursor, int? limit, ICommunityService svc, ICurrentUser user, CancellationToken ct) =>
+        {
+            var (items, next) = await svc.ListPostsAsync(TryUser(user), sort ?? "latest", q, cursor, limit ?? 20, ct);
+            return Results.Ok(ApiResponse<object>.Ok(new { items, nextCursor = next }));
+        }).WithTags("Community").AllowAnonymous().RequireRateLimiting("public");
+
         endpoints.MapGet("/api/v1/community/posts/{id:guid}", async (Guid id, ICommunityService svc, ICurrentUser user, CancellationToken ct) =>
             Results.Ok(ApiResponse<CommunityPostDto>.Ok(await svc.GetPostAsync(id, TryUser(user), ct))))
             .WithTags("Community").AllowAnonymous();

@@ -26,13 +26,15 @@ public sealed record CommunityUserDto(
     Guid Id,
     string Username,
     string? DisplayName,
-    string? AvatarUrl);
+    string? AvatarUrl,
+    int? Level = null);
 
 public sealed record CommunityGameDto(
     Guid Id,
     string Slug,
     string Title,
-    string? ThumbnailUrl);
+    string? ThumbnailUrl,
+    IReadOnlyList<string>? Categories = null);
 
 public sealed record CommunityPostDto(
     Guid Id,

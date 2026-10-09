@@ -20,6 +20,7 @@ public interface ICommunityService
     Task<CommunityHomeDto> GetHomeAsync(Guid? viewerId, CancellationToken ct = default);
     Task<(IReadOnlyList<FeedItemDto> Items, string? NextCursor)> GetFeedAsync(Guid? viewerId, string? cursor, int limit, string sort, CancellationToken ct = default);
     Task<IReadOnlyList<CommunityPostDto>> GetGameDiscussionsAsync(string gameSlug, string sort, Guid? viewerId, CancellationToken ct = default);
+    Task<(IReadOnlyList<CommunityPostDto> Items, string? NextCursor)> ListPostsAsync(Guid? viewerId, string sort, string? query, string? cursor, int limit, CancellationToken ct = default);
     Task<CommunityPostDto> GetPostAsync(Guid id, Guid? viewerId, CancellationToken ct = default);
     Task<CommunityPostDto> CreatePostAsync(Guid userId, string type, string title, string content, Guid? gameId, CancellationToken ct = default);
     Task<CommunityPostDto> UpdatePostAsync(Guid userId, Guid postId, string title, string content, bool isMod, CancellationToken ct = default);
@@ -63,11 +64,8 @@ public sealed class CommunityService(
     public async Task<CommunityHomeDto> GetHomeAsync(Guid? viewerId, CancellationToken ct = default)
     {
         var (feed, _) = await GetFeedAsync(viewerId, null, 12, "newest", ct);
-        var trending = await QueryPostsAsync("""
-            SELECT p.*, u.username, u.display_name, u.avatar_url, g.slug AS game_slug, g.title AS game_title, g.thumbnail_url
-            FROM community_posts p
-            INNER JOIN users u ON u.id = p.author_id
-            LEFT JOIN games g ON g.id = p.game_id
+        var trending = await QueryPostsAsync($"""
+            {PostSelectSql}
             WHERE p.deleted_at IS NULL AND p.status = 'published'
             ORDER BY (p.comment_count * 2 + p.reaction_count) DESC, p.created_at DESC
             LIMIT 8
@@ -92,14 +90,58 @@ public sealed class CommunityService(
         };
 
         return await QueryPostsAsync($"""
-            SELECT p.*, u.username, u.display_name, u.avatar_url, g.slug AS game_slug, g.title AS game_title, g.thumbnail_url
-            FROM community_posts p
-            INNER JOIN users u ON u.id = p.author_id
-            LEFT JOIN games g ON g.id = p.game_id
+            {PostSelectSql}
             WHERE p.deleted_at IS NULL AND p.status = 'published' AND p.game_id = @GameId
             ORDER BY {order}
             LIMIT 50
             """, new { GameId = gameId }, viewerId, ct);
+    }
+
+    public async Task<(IReadOnlyList<CommunityPostDto> Items, string? NextCursor)> ListPostsAsync(
+        Guid? viewerId, string sort, string? query, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var take = Math.Clamp(limit, 1, 50);
+        var offset = int.TryParse(cursor, out var parsedOffset) ? Math.Clamp(parsedOffset, 0, 1000) : 0;
+        var order = sort.ToLowerInvariant() switch
+        {
+            "trending" or "popular" => "(p.comment_count * 2 + p.reaction_count) DESC, p.created_at DESC, p.id DESC",
+            "most_liked" or "most-liked" => "p.reaction_count DESC, p.created_at DESC, p.id DESC",
+            _ => "p.created_at DESC, p.id DESC"
+        };
+        var term = query?.Trim();
+        string? pattern = null;
+        if (!string.IsNullOrEmpty(term))
+        {
+            if (term.Length > 100) term = term[..100];
+            pattern = "%" + term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+        }
+
+        Guid[] blocked = [];
+        if (viewerId is not null)
+        {
+            await using var connection = await OpenAsync(ct);
+            blocked = (await connection.QueryAsync<Guid>(new CommandDefinition(
+                "SELECT blocked_id FROM user_blocks WHERE blocker_id = @UserId UNION SELECT blocker_id FROM user_blocks WHERE blocked_id = @UserId",
+                new { UserId = viewerId }, cancellationToken: ct))).ToArray();
+        }
+
+        var posts = await QueryPostsAsync($"""
+            {PostSelectSql}
+            WHERE p.deleted_at IS NULL AND p.status = 'published'
+              AND (@Pattern::text IS NULL OR p.title ILIKE @Pattern OR p.content ILIKE @Pattern)
+              AND (@BlockedCount = 0 OR p.author_id <> ALL(@Blocked))
+            ORDER BY {order}
+            LIMIT @Limit OFFSET @Offset
+            """, new { Pattern = pattern, Blocked = blocked, BlockedCount = blocked.Length, Limit = take + 1, Offset = offset }, viewerId, ct);
+
+        string? next = null;
+        if (posts.Count > take)
+        {
+            posts.RemoveAt(posts.Count - 1);
+            next = (offset + take).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return (posts, next);
     }
 
     public async Task<(IReadOnlyList<FeedItemDto> Items, string? NextCursor)> GetFeedAsync(
@@ -174,11 +216,8 @@ public sealed class CommunityService(
 
     public async Task<CommunityPostDto> GetPostAsync(Guid id, Guid? viewerId, CancellationToken ct = default)
     {
-        var posts = await QueryPostsAsync("""
-            SELECT p.*, u.username, u.display_name, u.avatar_url, g.slug AS game_slug, g.title AS game_title, g.thumbnail_url
-            FROM community_posts p
-            INNER JOIN users u ON u.id = p.author_id
-            LEFT JOIN games g ON g.id = p.game_id
+        var posts = await QueryPostsAsync($"""
+            {PostSelectSql}
             WHERE p.id = @Id AND p.deleted_at IS NULL AND p.status <> 'deleted'
             """, new { Id = id }, viewerId, ct);
         var post = posts.FirstOrDefault() ?? throw new NotFoundException("Post", id.ToString());
@@ -958,28 +997,51 @@ public sealed class CommunityService(
         return (summary, []);
     }
 
+    private const string PostSelectSql = """
+        SELECT p.*, u.username, u.display_name, u.avatar_url, g.slug AS game_slug, g.title AS game_title, g.thumbnail_url,
+               up.level AS author_level,
+               ARRAY(
+                   SELECT c.name FROM game_categories gc
+                   INNER JOIN categories c ON c.id = gc.category_id
+                   WHERE gc.game_id = p.game_id
+                   ORDER BY c.name
+                   LIMIT 3
+               ) AS game_categories
+        FROM community_posts p
+        INNER JOIN users u ON u.id = p.author_id
+        LEFT JOIN games g ON g.id = p.game_id
+        LEFT JOIN user_progress up ON up.user_id = p.author_id
+        """;
+
     private async Task<List<CommunityPostDto>> QueryPostsAsync(string sql, object? param, Guid? viewerId, CancellationToken ct)
     {
         await using var connection = await OpenAsync(ct);
-        var rows = await connection.QueryAsync(new CommandDefinition(sql, param, cancellationToken: ct));
-        var list = new List<CommunityPostDto>();
+        var rows = (await connection.QueryAsync(new CommandDefinition(sql, param, cancellationToken: ct))).ToList();
+
+        var reactions = new Dictionary<Guid, string>();
+        if (viewerId is not null && rows.Count > 0)
+        {
+            var ids = rows.Select(r => (Guid)r.id).ToArray();
+            var viewerRows = await connection.QueryAsync<(Guid TargetId, string Reaction)>(new CommandDefinition(
+                "SELECT target_id, reaction FROM community_reactions WHERE user_id = @UserId AND target_type = 'post' AND target_id = ANY(@Ids)",
+                new { UserId = viewerId, Ids = ids }, cancellationToken: ct));
+            foreach (var (targetId, reaction) in viewerRows)
+            {
+                reactions.TryAdd(targetId, reaction);
+            }
+        }
+
+        var list = new List<CommunityPostDto>(rows.Count);
         foreach (var r in rows)
         {
-            string? viewerReaction = null;
-            if (viewerId is not null)
-            {
-                viewerReaction = await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
-                    "SELECT reaction FROM community_reactions WHERE user_id = @UserId AND target_type = 'post' AND target_id = @Id LIMIT 1",
-                    new { UserId = viewerId, Id = (Guid)r.id }, cancellationToken: ct));
-            }
-
+            var id = (Guid)r.id;
             list.Add(new CommunityPostDto(
-                (Guid)r.id, (string)r.slug, (string)r.type, (string)r.title, (string)r.content, (string)r.status,
+                id, (string)r.slug, (string)r.type, (string)r.title, (string)r.content, (string)r.status,
                 (int)r.comment_count, (int)r.reaction_count, (int)r.view_count,
                 (DateTimeOffset)r.created_at, (DateTimeOffset)r.updated_at,
-                new CommunityUserDto((Guid)r.author_id, (string)r.username, (string?)r.display_name, (string?)r.avatar_url),
-                r.game_id is null ? null : new CommunityGameDto((Guid)r.game_id, (string)r.game_slug, (string)r.game_title, (string?)r.thumbnail_url),
-                viewerReaction));
+                new CommunityUserDto((Guid)r.author_id, (string)r.username, (string?)r.display_name, (string?)r.avatar_url, (int?)r.author_level),
+                r.game_id is null ? null : new CommunityGameDto((Guid)r.game_id, (string)r.game_slug, (string)r.game_title, (string?)r.thumbnail_url, (string[]?)r.game_categories),
+                reactions.GetValueOrDefault(id)));
         }
 
         return list;
