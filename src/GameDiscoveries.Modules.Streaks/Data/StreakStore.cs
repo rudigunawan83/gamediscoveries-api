@@ -379,8 +379,8 @@ public sealed class StreakStore(IDbConnectionFactory connectionFactory) : IStrea
             SELECT COUNT(*)::int FROM streak_history
             WHERE user_id = @UserId
               AND (@EventType IS NULL OR event_type = @EventType)
-              AND (@From IS NULL OR activity_date >= @From)
-              AND (@To IS NULL OR activity_date <= @To)
+              AND (@From::date IS NULL OR activity_date >= @From::date)
+              AND (@To::date IS NULL OR activity_date <= @To::date)
             """,
             new
             {
@@ -397,8 +397,8 @@ public sealed class StreakStore(IDbConnectionFactory connectionFactory) : IStrea
             FROM streak_history
             WHERE user_id = @UserId
               AND (@EventType IS NULL OR event_type = @EventType)
-              AND (@From IS NULL OR activity_date >= @From)
-              AND (@To IS NULL OR activity_date <= @To)
+              AND (@From::date IS NULL OR activity_date >= @From::date)
+              AND (@To::date IS NULL OR activity_date <= @To::date)
             ORDER BY created_at DESC
             LIMIT @Limit OFFSET @Offset
             """,

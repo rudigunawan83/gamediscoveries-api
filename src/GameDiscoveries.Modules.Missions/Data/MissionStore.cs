@@ -555,8 +555,8 @@ public sealed class MissionStore(IDbConnectionFactory connectionFactory) : IMiss
             WHERE user_id = @UserId
               AND (@Type IS NULL OR type = @Type)
               AND (@Status IS NULL OR status = @Status)
-              AND (@From IS NULL OR period_start >= @From)
-              AND (@To IS NULL OR period_start <= @To)
+              AND (@From::timestamptz IS NULL OR period_start >= @From)
+              AND (@To::timestamptz IS NULL OR period_start <= @To)
             """,
             new
             {
@@ -573,8 +573,8 @@ public sealed class MissionStore(IDbConnectionFactory connectionFactory) : IMiss
             WHERE user_id = @UserId
               AND (@Type IS NULL OR type = @Type)
               AND (@Status IS NULL OR status = @Status)
-              AND (@From IS NULL OR period_start >= @From)
-              AND (@To IS NULL OR period_start <= @To)
+              AND (@From::timestamptz IS NULL OR period_start >= @From)
+              AND (@To::timestamptz IS NULL OR period_start <= @To)
             ORDER BY period_start DESC, created_at DESC
             LIMIT @Limit OFFSET @Offset
             """,

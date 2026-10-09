@@ -126,7 +126,7 @@ public sealed class CommunityService(
             INNER JOIN users u ON u.id = a.user_id
             LEFT JOIN games g ON g.id = a.game_id
             LEFT JOIN community_posts p ON a.entity_type = 'post' AND p.id = a.entity_id
-            WHERE (@Before IS NULL OR a.created_at < @Before)
+            WHERE (@Before::timestamptz IS NULL OR a.created_at < @Before)
               AND (@BlockedCount = 0 OR a.user_id <> ALL(@Blocked))
               AND COALESCE(u.show_activity, TRUE) = TRUE
             ORDER BY a.created_at DESC

@@ -290,8 +290,8 @@ public sealed class XpStore(IDbConnectionFactory connectionFactory) : IXpStore
             FROM xp_transactions
             WHERE user_id = @UserId
               AND (@RuleCode IS NULL OR rule_code = @RuleCode)
-              AND (@From IS NULL OR created_at >= @From)
-              AND (@To IS NULL OR created_at <= @To)
+              AND (@From::timestamptz IS NULL OR created_at >= @From)
+              AND (@To::timestamptz IS NULL OR created_at <= @To)
             ORDER BY created_at DESC
             LIMIT @Limit OFFSET @Offset
             """,
@@ -460,8 +460,8 @@ public sealed class XpStore(IDbConnectionFactory connectionFactory) : IXpStore
             FROM xp_transactions
             WHERE user_id = @UserId
               AND (@RuleCode IS NULL OR rule_code = @RuleCode)
-              AND (@From IS NULL OR created_at >= @From)
-              AND (@To IS NULL OR created_at <= @To)
+              AND (@From::timestamptz IS NULL OR created_at >= @From)
+              AND (@To::timestamptz IS NULL OR created_at <= @To)
             """,
             new
             {
