@@ -1,0 +1,17 @@
+---
+description: Hemat token saat bekerja di backend .NET GameDiscoveries API
+alwaysApply: true
+---
+
+# Token Efficiency (API)
+
+- Jawab singkat dalam Bahasa Indonesia; update progres 1-2 kalimat.
+- `README.md` sangat panjang: cari dengan Grep lalu baca bagian terkait saja (offset/limit). Detail per fitur ada di `docs/*.md`.
+- Navigasi per modul: `src/GameDiscoveries.Modules.<Nama>/` → `Features/` (endpoint), `Services/`, `Data/` (query Dapper), `<Nama>Module.cs` (registrasi DI).
+- Migrasi SQL ada di `src/GameDiscoveries.Infrastructure/PostgreSQL/Migrations/`; cari nama tabel/kolom dengan Grep, jangan buka semua file.
+- Abaikan `bin/`, `obj/`, `artifacts/`.
+- Build/test dengan output terfilter, contoh:
+  - `dotnet build src/GameDiscoveries.Api -v q`
+  - `dotnet test tests/GameDiscoveries.UnitTests --filter "FullyQualifiedName~<Nama>"`
+- Jangan suntik `IXpEngine`, sink, atau handler analytics langsung jika memicu siklus DI; resolve lazy (lihat `GamificationDependencyGraphTests`).
+- Ubah hanya file terdampak; jangan refactor di luar permintaan. Jangan commit/deploy kecuali diminta.
