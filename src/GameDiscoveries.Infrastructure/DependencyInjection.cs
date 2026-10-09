@@ -54,6 +54,7 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(GameFeedSyncOptions.SectionName))
             .ValidateOnStart();
 
+        DapperTypeHandlers.Register();
         services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
         services.AddSingleton<DatabaseMigrator>();
 
