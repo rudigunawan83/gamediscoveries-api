@@ -642,6 +642,7 @@ public sealed class MissionStore(IDbConnectionFactory connectionFactory) : IMiss
             byCode);
     }
 
+    // Raw string literals drop the final newline; keep one so appended WHERE clauses stay separate tokens.
     private const string UserMissionSelect = """
         SELECT id AS Id, user_id AS UserId, mission_template_id AS MissionTemplateId,
                code AS Code, type AS Type, title AS Title, description AS Description,
@@ -650,5 +651,5 @@ public sealed class MissionStore(IDbConnectionFactory connectionFactory) : IMiss
                status AS Status, completed_at AS CompletedAt, reward_transaction_id AS RewardTransactionId,
                created_at AS CreatedAt, updated_at AS UpdatedAt
         FROM user_missions
-        """;
+        """ + "\n";
 }
