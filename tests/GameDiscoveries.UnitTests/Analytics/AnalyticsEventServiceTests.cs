@@ -5,6 +5,7 @@ using GameDiscoveries.Modules.Analytics.Models;
 using GameDiscoveries.Modules.Analytics.Options;
 using GameDiscoveries.Modules.Analytics.Processing;
 using GameDiscoveries.Modules.Analytics.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -126,7 +127,7 @@ public sealed class AnalyticsEventServiceTests
                 EnableAnonymousTracking = true,
                 ValidateGameExists = true
             })),
-            new AnalyticsEventDispatcher(Array.Empty<IAnalyticsEventHandler>()),
+            new AnalyticsEventDispatcher(new ServiceCollection().BuildServiceProvider()),
             Options.Create(new AnalyticsOptions
             {
                 MaxBatchSize = 100,

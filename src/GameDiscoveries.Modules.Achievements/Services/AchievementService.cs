@@ -11,6 +11,7 @@ using GameDiscoveries.Modules.Analytics.Services;
 using GameDiscoveries.Modules.Xp.Domain;
 using GameDiscoveries.Modules.Xp.Models;
 using GameDiscoveries.Modules.Xp.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -59,7 +60,7 @@ public interface IAchievementService
 public sealed class AchievementService(
     IAchievementStore store,
     IRequirementEvaluator evaluator,
-    IXpEngine xpEngine,
+    IServiceProvider services,
     IAnalyticsEventService analytics,
     IAuditLogService audit,
     IOptions<AchievementOptions> options,
@@ -341,6 +342,8 @@ public sealed class AchievementService(
             return;
         }
 
+        // Resolved lazily: XpEngine notifies achievement sinks, so injecting it would form a cycle.
+        var xpEngine = services.GetRequiredService<IXpEngine>();
         var result = await xpEngine.AwardAsync(
             new XpAwardRequest(
                 userId,

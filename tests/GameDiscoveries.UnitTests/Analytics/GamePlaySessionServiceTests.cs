@@ -6,6 +6,7 @@ using GameDiscoveries.Modules.Analytics.Models;
 using GameDiscoveries.Modules.Analytics.Options;
 using GameDiscoveries.Modules.Analytics.Processing;
 using GameDiscoveries.Modules.Analytics.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -191,7 +192,7 @@ public sealed class GamePlaySessionServiceTests
         var analytics = new AnalyticsEventService(
             analyticsStore,
             new AnalyticsEventValidator(Options.Create(new AnalyticsOptions())),
-            new AnalyticsEventDispatcher(Array.Empty<IAnalyticsEventHandler>()),
+            new AnalyticsEventDispatcher(new ServiceCollection().BuildServiceProvider()),
             Options.Create(new AnalyticsOptions()),
             NullLogger<AnalyticsEventService>.Instance);
 

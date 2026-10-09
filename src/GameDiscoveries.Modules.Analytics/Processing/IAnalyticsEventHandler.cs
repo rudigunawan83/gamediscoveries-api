@@ -1,4 +1,5 @@
 using GameDiscoveries.Modules.Analytics.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GameDiscoveries.Modules.Analytics.Processing;
 
@@ -25,12 +26,14 @@ public interface IAnalyticsEventDispatcher
 /// <summary>
 /// Lightweight dispatcher. Handlers must remain non-blocking and must not
 /// perform expensive XP/recommendation work during Phase 01 ingestion.
+/// Handlers are resolved per dispatch because they depend on services
+/// (e.g. the XP engine) that themselves depend on <c>IAnalyticsEventService</c>.
 /// </summary>
-public sealed class AnalyticsEventDispatcher(IEnumerable<IAnalyticsEventHandler> handlers) : IAnalyticsEventDispatcher
+public sealed class AnalyticsEventDispatcher(IServiceProvider services) : IAnalyticsEventDispatcher
 {
     public async Task DispatchAsync(AnalyticsEventWriteCommand command, CancellationToken cancellationToken = default)
     {
-        foreach (var handler in handlers)
+        foreach (var handler in services.GetServices<IAnalyticsEventHandler>())
         {
             await handler.HandleAsync(command, cancellationToken);
         }
