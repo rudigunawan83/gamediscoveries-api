@@ -249,9 +249,11 @@ public sealed class LeaderboardStore(IDbConnectionFactory connectionFactory) : I
                    e.score AS Score, e.rank AS Rank, e.previous_rank AS PreviousRank, e.rank_change AS RankChange,
                    e.games_played AS GamesPlayed, e.valid_sessions AS ValidSessions, e.xp_earned AS XpEarned,
                    e.score_reached_at AS ScoreReachedAt, e.is_disqualified AS IsDisqualified,
-                   u.username AS Username, u.display_name AS DisplayName, u.avatar_url AS AvatarUrl
+                   u.username AS Username, u.display_name AS DisplayName, u.avatar_url AS AvatarUrl,
+                   up.level AS Level
             FROM leaderboard_entries e
             INNER JOIN users u ON u.id = e.user_id
+            LEFT JOIN user_progress up ON up.user_id = e.user_id
             WHERE e.leaderboard_id = @LeaderboardId
               AND e.period_id = @PeriodId
               AND e.is_disqualified = FALSE
@@ -278,9 +280,11 @@ public sealed class LeaderboardStore(IDbConnectionFactory connectionFactory) : I
                    e.score AS Score, e.rank AS Rank, e.previous_rank AS PreviousRank, e.rank_change AS RankChange,
                    e.games_played AS GamesPlayed, e.valid_sessions AS ValidSessions, e.xp_earned AS XpEarned,
                    e.score_reached_at AS ScoreReachedAt, e.is_disqualified AS IsDisqualified,
-                   u.username AS Username, u.display_name AS DisplayName, u.avatar_url AS AvatarUrl
+                   u.username AS Username, u.display_name AS DisplayName, u.avatar_url AS AvatarUrl,
+                   up.level AS Level
             FROM leaderboard_entries e
             INNER JOIN users u ON u.id = e.user_id
+            LEFT JOIN user_progress up ON up.user_id = e.user_id
             WHERE e.leaderboard_id = @LeaderboardId AND e.period_id = @PeriodId AND e.user_id = @UserId
             LIMIT 1
             """,

@@ -387,7 +387,7 @@ public sealed class LeaderboardService(
     private static LeaderboardItemDto MapItem(LeaderboardEntryRow row) =>
         new(
             row.Rank ?? 0,
-            new LeaderboardUserDto(row.UserId, row.DisplayName, row.Username, row.AvatarUrl),
+            new LeaderboardUserDto(row.UserId, row.DisplayName, row.Username, row.AvatarUrl, row.Level),
             row.Score,
             row.PreviousRank is null ? null : row.RankChange,
             LeaderboardRankHelper.ToMovement(row.PreviousRank, row.Rank, row.RankChange),

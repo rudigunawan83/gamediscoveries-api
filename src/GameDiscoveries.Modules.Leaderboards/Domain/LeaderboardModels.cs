@@ -47,9 +47,10 @@ public sealed class LeaderboardEntryRow
     public string? Username { get; init; }
     public string? DisplayName { get; init; }
     public string? AvatarUrl { get; init; }
+    public int? Level { get; init; }
 }
 
-public sealed record LeaderboardUserDto(Guid Id, string? DisplayName, string? Username, string? AvatarUrl);
+public sealed record LeaderboardUserDto(Guid Id, string? DisplayName, string? Username, string? AvatarUrl, int? Level);
 
 public sealed record LeaderboardItemDto(
     int Rank,
