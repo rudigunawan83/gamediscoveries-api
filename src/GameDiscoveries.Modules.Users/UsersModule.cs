@@ -1,6 +1,7 @@
 using FluentValidation;
 using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.Modules.Users.Data;
+using GameDiscoveries.Modules.Users.Features.Avatar;
 using GameDiscoveries.Modules.Users.Features.GetCurrentUser;
 using GameDiscoveries.Modules.Users.Features.Login;
 using GameDiscoveries.Modules.Users.Features.Logout;
@@ -22,6 +23,9 @@ public sealed class UsersModule : IModule
         services.AddScoped<LoginHandler>();
         services.AddScoped<RegisterHandler>();
         services.AddScoped<GetCurrentUserHandler>();
+        services.AddOptions<AvatarOptions>().BindConfiguration(AvatarOptions.SectionName);
+        services.AddSingleton<AvatarStorage>();
+        services.AddScoped<AvatarHandler>();
         services.AddValidatorsFromAssemblyContaining<LoginValidator>();
         services.AddValidatorsFromAssemblyContaining<RegisterValidator>();
         services.AddHostedService<AuthSeedHostedService>();
@@ -33,6 +37,7 @@ public sealed class UsersModule : IModule
         endpoints.MapRegister();
         endpoints.MapLogout();
         endpoints.MapGetCurrentUser();
+        endpoints.MapAvatar();
     }
 }
 

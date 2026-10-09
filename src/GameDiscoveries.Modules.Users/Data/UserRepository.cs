@@ -23,6 +23,12 @@ public interface IUserRepository
         string? displayName,
         IEnumerable<string> roles,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Sets the avatar URL and returns the previous one.</summary>
+    Task<string?> UpdateAvatarUrlAsync(
+        Guid id,
+        string? avatarUrl,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUserRepository
@@ -201,6 +207,27 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         }
 
         await tx.CommitAsync(cancellationToken);
+    }
+
+    public async Task<string?> UpdateAvatarUrlAsync(
+        Guid id,
+        string? avatarUrl,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE users u
+            SET avatar_url = @AvatarUrl,
+                updated_at = (NOW() AT TIME ZONE 'utc')
+            FROM (SELECT avatar_url FROM users WHERE id = @Id) previous
+            WHERE u.id = @Id
+            RETURNING previous.avatar_url;
+            """;
+
+        await using var connection = (System.Data.Common.DbConnection)
+            await connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        return await connection.QuerySingleOrDefaultAsync<string?>(
+            new CommandDefinition(sql, new { Id = id, AvatarUrl = avatarUrl }, cancellationToken: cancellationToken));
     }
 
     private static async Task<IReadOnlyList<string>> LoadRolesAsync(
