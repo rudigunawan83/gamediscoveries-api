@@ -88,6 +88,14 @@ public static class CommunityEndpoints
             return Results.Ok(ApiResponse<object>.Ok(new { deleted = true }));
         }).WithTags("Community").RequireAuthorization(Policies.Authenticated);
 
+        endpoints.MapGet("/api/v1/users/me/reviews", async (ICommunityService svc, ICurrentUser user, CancellationToken ct) =>
+            Results.Ok(ApiResponse<IReadOnlyList<MyReviewDto>>.Ok(await svc.GetMyReviewsAsync(RequireUser(user), ct))))
+            .WithTags("Community").RequireAuthorization(Policies.Authenticated);
+
+        endpoints.MapGet("/api/v1/users/me/privacy", async (ICommunityService svc, ICurrentUser user, CancellationToken ct) =>
+            Results.Ok(ApiResponse<PrivacySettingsDto>.Ok(await svc.GetPrivacyAsync(RequireUser(user), ct))))
+            .WithTags("Community").RequireAuthorization(Policies.Authenticated);
+
         endpoints.MapGet("/api/v1/users/{username}/profile", async (string username, ICommunityService svc, ICurrentUser user, CancellationToken ct) =>
             Results.Ok(ApiResponse<UserProfileDto>.Ok(await svc.GetProfileAsync(username, TryUser(user), ct))))
             .WithTags("Community").AllowAnonymous();

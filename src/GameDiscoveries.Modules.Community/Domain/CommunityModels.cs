@@ -70,6 +70,23 @@ public sealed record GameReviewDto(
     DateTimeOffset UpdatedAt,
     CommunityUserDto Author);
 
+public sealed record MyReviewDto(
+    Guid Id,
+    int Rating,
+    string Content,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    CommunityGameDto Game);
+
+public sealed record PrivacySettingsDto(
+    bool ShowFavorites,
+    bool ShowHistory,
+    bool ShowAchievements,
+    bool ShowActivity,
+    bool ShowOnLeaderboards,
+    string? Bio);
+
 public sealed record GameReviewSummaryDto(
     Guid GameId,
     double AverageRating,

@@ -32,7 +32,9 @@ public interface ICommunityService
     Task<(GameReviewSummaryDto Summary, IReadOnlyList<GameReviewDto> Items)> GetReviewsAsync(string gameSlug, CancellationToken ct = default);
     Task<GameReviewDto> UpsertReviewAsync(Guid userId, string gameSlug, int rating, string content, CancellationToken ct = default);
     Task DeleteReviewAsync(Guid userId, Guid reviewId, bool isMod, CancellationToken ct = default);
+    Task<IReadOnlyList<MyReviewDto>> GetMyReviewsAsync(Guid userId, CancellationToken ct = default);
     Task<UserProfileDto> GetProfileAsync(string username, Guid? viewerId, CancellationToken ct = default);
+    Task<PrivacySettingsDto> GetPrivacyAsync(Guid userId, CancellationToken ct = default);
     Task UpdatePrivacyAsync(Guid userId, bool? showFavorites, bool? showHistory, bool? showAchievements, bool? showActivity, bool? showOnLeaderboards, string? bio, CancellationToken ct = default);
     Task FollowAsync(Guid userId, Guid targetId, CancellationToken ct = default);
     Task UnfollowAsync(Guid userId, Guid targetId, CancellationToken ct = default);
@@ -483,6 +485,37 @@ public sealed class CommunityService(
             UPDATE game_reviews SET status = 'deleted', deleted_at = (NOW() AT TIME ZONE 'utc') WHERE id = @Id
             """, new { Id = reviewId }, cancellationToken: ct));
         await cache.RemoveAsync($"community:review-summary:{(Guid)row.game_id}", ct);
+    }
+
+    public async Task<IReadOnlyList<MyReviewDto>> GetMyReviewsAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        var rows = await connection.QueryAsync(new CommandDefinition("""
+            SELECT r.id, r.rating::int AS rating, r.content, r.status, r.created_at, r.updated_at,
+                   g.id AS game_id, g.slug, g.title, g.thumbnail_url
+            FROM game_reviews r
+            INNER JOIN games g ON g.id = r.game_id
+            WHERE r.user_id = @UserId AND r.deleted_at IS NULL AND r.status <> 'deleted'
+            ORDER BY r.updated_at DESC
+            LIMIT 100
+            """, new { UserId = userId }, cancellationToken: ct));
+        return rows.Select(r => new MyReviewDto(
+                (Guid)r.id, (int)r.rating, (string)r.content, (string)r.status,
+                (DateTimeOffset)r.created_at, (DateTimeOffset)r.updated_at,
+                new CommunityGameDto((Guid)r.game_id, (string)r.slug, (string)r.title, (string?)r.thumbnail_url)))
+            .ToList();
+    }
+
+    public async Task<PrivacySettingsDto> GetPrivacyAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        return await connection.QuerySingleOrDefaultAsync<PrivacySettingsDto>(new CommandDefinition("""
+            SELECT show_favorites AS ShowFavorites, show_history AS ShowHistory,
+                   show_achievements AS ShowAchievements, show_activity AS ShowActivity,
+                   show_on_leaderboards AS ShowOnLeaderboards, bio AS Bio
+            FROM users WHERE id = @UserId
+            """, new { UserId = userId }, cancellationToken: ct))
+            ?? throw new NotFoundException("User", userId.ToString());
     }
 
     public async Task<UserProfileDto> GetProfileAsync(string username, Guid? viewerId, CancellationToken ct = default)

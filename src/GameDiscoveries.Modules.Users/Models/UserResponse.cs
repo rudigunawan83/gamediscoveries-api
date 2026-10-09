@@ -5,7 +5,8 @@ public sealed record UserResponse(
     string Email,
     string? DisplayName,
     string? AvatarUrl,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    string? Username);
 
 public static class UserResponseMapper
 {
@@ -15,5 +16,6 @@ public static class UserResponseMapper
             user.Email,
             user.DisplayName,
             user.AvatarUrl,
-            user.Roles);
+            user.Roles,
+            user.Username);
 }

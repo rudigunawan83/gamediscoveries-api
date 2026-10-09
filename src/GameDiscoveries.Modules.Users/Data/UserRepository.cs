@@ -37,6 +37,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
                 u.email AS Email,
                 u.password_hash AS PasswordHash,
                 u.display_name AS DisplayName,
+                u.username AS Username,
                 u.avatar_url AS AvatarUrl,
                 u.status AS Status
             FROM users u
@@ -61,6 +62,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
             Id = row.Id,
             Email = row.Email,
             DisplayName = row.DisplayName,
+            Username = row.Username,
             AvatarUrl = row.AvatarUrl,
             Status = row.Status,
             Roles = roles
@@ -78,6 +80,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
                 u.id AS Id,
                 u.email AS Email,
                 u.display_name AS DisplayName,
+                u.username AS Username,
                 u.avatar_url AS AvatarUrl,
                 u.status AS Status
             FROM users u
@@ -102,6 +105,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
             Id = row.Id,
             Email = row.Email,
             DisplayName = row.DisplayName,
+            Username = row.Username,
             AvatarUrl = row.AvatarUrl,
             Status = row.Status,
             Roles = roles
@@ -223,6 +227,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         public string Email { get; init; } = string.Empty;
         public string PasswordHash { get; init; } = string.Empty;
         public string? DisplayName { get; init; }
+        public string? Username { get; init; }
         public string? AvatarUrl { get; init; }
         public string Status { get; init; } = "active";
     }
@@ -232,6 +237,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         public Guid Id { get; init; }
         public string Email { get; init; } = string.Empty;
         public string? DisplayName { get; init; }
+        public string? Username { get; init; }
         public string? AvatarUrl { get; init; }
         public string Status { get; init; } = "active";
     }
