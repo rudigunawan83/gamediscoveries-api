@@ -7,6 +7,7 @@ using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.Infrastructure;
 using GameDiscoveries.Modules.Administration;
 using GameDiscoveries.Modules.Achievements;
+using GameDiscoveries.Modules.Advertising;
 using GameDiscoveries.Modules.Analytics;
 using GameDiscoveries.Modules.Catalog;
 using GameDiscoveries.Modules.Community;
@@ -87,6 +88,7 @@ try
     app.MapAdministrationModule();
     app.MapUsersModule();
     app.MapFavoritesModule();
+    app.MapAdvertisingModule();
 
     foreach (var module in app.Services.GetServices<IModule>())
     {

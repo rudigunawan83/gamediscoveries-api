@@ -48,4 +48,10 @@ public static class AdvertisingModuleExtensions
         services.AddSingleton<IModule>(module);
         return services;
     }
+
+    public static IEndpointRouteBuilder MapAdvertisingModule(this IEndpointRouteBuilder endpoints)
+    {
+        new AdvertisingModule().MapEndpoints(endpoints);
+        return endpoints;
+    }
 }
