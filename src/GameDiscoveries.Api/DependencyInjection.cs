@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.Configure<RateLimitingOptions>(configuration.GetSection(RateLimitingOptions.SectionName));
         services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
         services.Configure<CommunityOptions>(configuration.GetSection(CommunityOptions.SectionName));
+        services.Configure<AppVersionOptions>(configuration.GetSection(AppVersionOptions.SectionName));
 
         services.AddBuildingBlocks();
         services.AddInfrastructure(configuration);

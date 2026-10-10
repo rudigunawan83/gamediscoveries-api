@@ -74,6 +74,7 @@ try
     }
 
     app.MapGameDiscoveriesHealthChecks();
+    app.MapAppVersionEndpoints();
     app.MapCatalogModule();
     app.MapDiscoveryModule();
     app.MapRecommendationModule();
