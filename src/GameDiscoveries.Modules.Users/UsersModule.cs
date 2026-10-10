@@ -5,6 +5,8 @@ using GameDiscoveries.Modules.Users.Features.Avatar;
 using GameDiscoveries.Modules.Users.Features.GetCurrentUser;
 using GameDiscoveries.Modules.Users.Features.Login;
 using GameDiscoveries.Modules.Users.Features.Logout;
+using GameDiscoveries.Modules.Users.Features.Preferences;
+using GameDiscoveries.Modules.Users.Features.Profile;
 using GameDiscoveries.Modules.Users.Features.Register;
 using GameDiscoveries.Modules.Users.Services;
 using Microsoft.AspNetCore.Routing;
@@ -26,6 +28,8 @@ public sealed class UsersModule : IModule
         services.AddOptions<AvatarOptions>().BindConfiguration(AvatarOptions.SectionName);
         services.AddSingleton<AvatarStorage>();
         services.AddScoped<AvatarHandler>();
+        services.AddScoped<PreferencesHandler>();
+        services.AddScoped<ProfileHandler>();
         services.AddValidatorsFromAssemblyContaining<LoginValidator>();
         services.AddValidatorsFromAssemblyContaining<RegisterValidator>();
         services.AddHostedService<AuthSeedHostedService>();
@@ -38,6 +42,8 @@ public sealed class UsersModule : IModule
         endpoints.MapLogout();
         endpoints.MapGetCurrentUser();
         endpoints.MapAvatar();
+        endpoints.MapPreferences();
+        endpoints.MapProfile();
     }
 }
 

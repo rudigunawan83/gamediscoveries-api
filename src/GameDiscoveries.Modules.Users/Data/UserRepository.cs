@@ -29,6 +29,28 @@ public interface IUserRepository
         Guid id,
         string? avatarUrl,
         CancellationToken cancellationToken = default);
+
+    /// <param name="language">A canonical value from <see cref="PreferredLanguage"/>.</param>
+    Task UpdatePreferredLanguageAsync(
+        Guid id,
+        string language,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets the display name and username. <paramref name="username"/> is stored as given.
+    /// </summary>
+    Task<ProfileUpdateStatus> UpdateProfileAsync(
+        Guid id,
+        string displayName,
+        string username,
+        CancellationToken cancellationToken = default);
+}
+
+public enum ProfileUpdateStatus
+{
+    Updated,
+    UsernameTaken,
+    Missing
 }
 
 public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUserRepository
@@ -45,7 +67,8 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
                 u.display_name AS DisplayName,
                 u.username AS Username,
                 u.avatar_url AS AvatarUrl,
-                u.status AS Status
+                u.status AS Status,
+                u.preferred_language AS PreferredLanguage
             FROM users u
             WHERE LOWER(u.email) = LOWER(@Email)
             LIMIT 1;
@@ -71,6 +94,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
             Username = row.Username,
             AvatarUrl = row.AvatarUrl,
             Status = row.Status,
+            PreferredLanguage = row.PreferredLanguage,
             Roles = roles
         };
 
@@ -88,7 +112,8 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
                 u.display_name AS DisplayName,
                 u.username AS Username,
                 u.avatar_url AS AvatarUrl,
-                u.status AS Status
+                u.status AS Status,
+                u.preferred_language AS PreferredLanguage
             FROM users u
             WHERE u.id = @Id
             LIMIT 1;
@@ -114,6 +139,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
             Username = row.Username,
             AvatarUrl = row.AvatarUrl,
             Status = row.Status,
+            PreferredLanguage = row.PreferredLanguage,
             Roles = roles
         };
     }
@@ -230,6 +256,88 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
             new CommandDefinition(sql, new { Id = id, AvatarUrl = avatarUrl }, cancellationToken: cancellationToken));
     }
 
+    public async Task UpdatePreferredLanguageAsync(
+        Guid id,
+        string language,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE users
+            SET preferred_language = @Language,
+                updated_at = (NOW() AT TIME ZONE 'utc')
+            WHERE id = @Id AND preferred_language <> @Language;
+            """;
+
+        await using var connection = (System.Data.Common.DbConnection)
+            await connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(sql, new { Id = id, Language = language }, cancellationToken: cancellationToken));
+    }
+
+    public async Task<ProfileUpdateStatus> UpdateProfileAsync(
+        Guid id,
+        string displayName,
+        string username,
+        CancellationToken cancellationToken = default)
+    {
+        const string updateSql = """
+            UPDATE users AS u
+            SET display_name = @DisplayName,
+                username = @Username,
+                updated_at = (NOW() AT TIME ZONE 'utc')
+            WHERE u.id = @Id
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM users AS other
+                  WHERE other.id <> @Id
+                    AND LOWER(other.username) = LOWER(@Username)
+              );
+            """;
+
+        await using var connection = (System.Data.Common.DbConnection)
+            await connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        try
+        {
+            var rows = await connection.ExecuteAsync(
+                new CommandDefinition(
+                    updateSql,
+                    new { Id = id, DisplayName = displayName, Username = username },
+                    cancellationToken: cancellationToken));
+            if (rows > 0)
+            {
+                return ProfileUpdateStatus.Updated;
+            }
+        }
+        catch (System.Data.Common.DbException exception) when (exception.SqlState == "23505")
+        {
+            return ProfileUpdateStatus.UsernameTaken;
+        }
+
+        const string stateSql = """
+            SELECT
+                EXISTS (SELECT 1 FROM users WHERE id = @Id) AS Found,
+                EXISTS (
+                    SELECT 1 FROM users
+                    WHERE id <> @Id AND LOWER(username) = LOWER(@Username)
+                ) AS Taken;
+            """;
+
+        var state = await connection.QuerySingleAsync<ProfileUpdateState>(
+            new CommandDefinition(
+                stateSql,
+                new { Id = id, Username = username },
+                cancellationToken: cancellationToken));
+
+        if (!state.Found)
+        {
+            return ProfileUpdateStatus.Missing;
+        }
+
+        return state.Taken ? ProfileUpdateStatus.UsernameTaken : ProfileUpdateStatus.Missing;
+    }
+
     private static async Task<IReadOnlyList<string>> LoadRolesAsync(
         System.Data.Common.DbConnection connection,
         Guid userId,
@@ -248,6 +356,12 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         return roles.ToArray();
     }
 
+    private sealed class ProfileUpdateState
+    {
+        public bool Found { get; init; }
+        public bool Taken { get; init; }
+    }
+
     private sealed class UserAuthRow
     {
         public Guid Id { get; init; }
@@ -257,6 +371,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         public string? Username { get; init; }
         public string? AvatarUrl { get; init; }
         public string Status { get; init; } = "active";
+        public string PreferredLanguage { get; init; } = Models.PreferredLanguage.System;
     }
 
     private sealed class UserRow
@@ -267,5 +382,6 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory) : IUs
         public string? Username { get; init; }
         public string? AvatarUrl { get; init; }
         public string Status { get; init; } = "active";
+        public string PreferredLanguage { get; init; } = Models.PreferredLanguage.System;
     }
 }

@@ -14,5 +14,7 @@ public sealed class UserAccount
 
     public required string Status { get; init; }
 
+    public string PreferredLanguage { get; init; } = Models.PreferredLanguage.System;
+
     public required IReadOnlyList<string> Roles { get; init; }
 }

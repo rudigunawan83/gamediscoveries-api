@@ -796,6 +796,10 @@ GET  /api/v1/users/me/preferences
 PUT  /api/v1/users/me/preferences
 ```
 
+Implemented: `PUT /api/v1/users/me/preferences` with body `{ "preferredLanguage": "SYSTEM" | "en" | "id" }`
+(migration `026_UserPreferredLanguage.sql`). It returns the updated `UserResponse`; `GET /api/v1/users/me`
+exposes `preferredLanguage` too. Only the language choice is stored server-side, translations stay in the clients.
+
 ---
 
 ## Favorites
