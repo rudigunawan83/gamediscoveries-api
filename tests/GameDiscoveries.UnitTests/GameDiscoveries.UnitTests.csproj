@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.DiscoveryScore\GameDiscoveries.Modules.DiscoveryScore.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Leaderboards\GameDiscoveries.Modules.Leaderboards.csproj" />
     <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Favorites\GameDiscoveries.Modules.Favorites.csproj" />
+    <ProjectReference Include="..\..\src\GameDiscoveries.Modules.Advertising\GameDiscoveries.Modules.Advertising.csproj" />
   </ItemGroup>
 
 </Project>

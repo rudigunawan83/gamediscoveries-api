@@ -8,10 +8,12 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Dapper" Version="2.1.89" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GameDiscoveries.BuildingBlocks\GameDiscoveries.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\GameDiscoveries.Modules.Xp\GameDiscoveries.Modules.Xp.csproj" />
   </ItemGroup>
 
 </Project>

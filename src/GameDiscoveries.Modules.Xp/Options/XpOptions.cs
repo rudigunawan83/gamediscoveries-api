@@ -33,4 +33,10 @@ public sealed class XpOptions
     public int WeeklyChallengeXp { get; set; } = 150;
 
     public int QualifiedReferralXp { get; set; } = 100;
+
+    /// <summary>
+    /// Per server-verified rewarded video. Kept above the best single play session
+    /// (<see cref="ValidGameSessionXp"/> + <see cref="SessionMilestone10MinutesXp"/>).
+    /// </summary>
+    public int RewardedAdXp { get; set; } = 50;
 }

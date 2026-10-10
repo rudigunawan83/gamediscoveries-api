@@ -4,6 +4,8 @@ using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Caching;
 using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.Modules.Achievements;
+using GameDiscoveries.Modules.Advertising;
+using GameDiscoveries.Modules.Advertising.Services;
 using GameDiscoveries.Modules.Achievements.Services;
 using GameDiscoveries.Modules.Analytics;
 using GameDiscoveries.Modules.Analytics.Processing;
@@ -33,7 +35,8 @@ public sealed class GamificationDependencyGraphTests
         typeof(IGamePlaySessionService),
         typeof(IEnumerable<IAnalyticsEventHandler>),
         typeof(IEnumerable<IAchievementActivitySink>),
-        typeof(IEnumerable<IMissionActivitySink>)
+        typeof(IEnumerable<IMissionActivitySink>),
+        typeof(IAdRewardService)
     };
 
     [Theory]
@@ -62,6 +65,7 @@ public sealed class GamificationDependencyGraphTests
         services.AddMissionsModule();
         services.AddStreaksModule();
         services.AddLeaderboardsModule();
+        services.AddAdvertisingModule();
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }

@@ -19,6 +19,7 @@ public static class XpRuleCodes
     public const string StreakMilestone = "STREAK_MILESTONE";
     public const string AchievementUnlock = "ACHIEVEMENT_UNLOCK";
     public const string QualifiedReferral = "QUALIFIED_REFERRAL";
+    public const string RewardedAdWatched = "REWARDED_AD_WATCHED";
     public const string AdminAdjustment = "ADMIN_ADJUSTMENT";
     public const string XpReversal = "XP_REVERSAL";
 }
@@ -33,6 +34,7 @@ public static class XpReferenceTypes
     public const string Reversal = "REVERSAL";
     public const string UserMission = "USER_MISSION";
     public const string Achievement = "ACHIEVEMENT";
+    public const string AdReward = "AD_REWARD";
 }
 
 public sealed record XpRuleDefinition(
@@ -74,6 +76,7 @@ public sealed class XpRuleCatalog(Microsoft.Extensions.Options.IOptions<XpOption
             new(XpRuleCodes.StreakMilestone, "STREAK_MILESTONE", 0, true, true, "Streak milestone reward"),
             new(XpRuleCodes.AchievementUnlock, "ACHIEVEMENT_UNLOCK", 0, true, true, "Achievement unlock reward"),
             new(XpRuleCodes.QualifiedReferral, "QUALIFIED_REFERRAL", o.QualifiedReferralXp, true, false, "Qualified referral (future)"),
+            new(XpRuleCodes.RewardedAdWatched, "REWARDED_AD_COMPLETED", o.RewardedAdXp, true, true, "Rewarded video watched (AdMob server-side verified)"),
             new(XpRuleCodes.AdminAdjustment, "ADMIN_ADJUSTMENT", 0, false, true, "Admin XP adjustment"),
             new(XpRuleCodes.XpReversal, "XP_REVERSAL", 0, false, true, "XP reversal / compensating transaction")
         ];
