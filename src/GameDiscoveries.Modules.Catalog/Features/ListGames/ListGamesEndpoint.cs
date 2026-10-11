@@ -17,6 +17,7 @@ public static class ListGamesEndpoint
                 string? category,
                 string? platform,
                 bool? mobileReady,
+                string? orientation,
                 string? sort,
                 string? tag,
                 ListGamesHandler handler,
@@ -31,6 +32,7 @@ public static class ListGamesEndpoint
                     Category = category,
                     Platform = platform,
                     MobileReady = mobileReady,
+                    Orientation = orientation,
                     Sort = sort,
                     Tag = tag
                 };

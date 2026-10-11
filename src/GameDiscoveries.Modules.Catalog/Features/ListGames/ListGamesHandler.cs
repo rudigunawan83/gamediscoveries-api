@@ -66,6 +66,12 @@ public sealed class ListGamesHandler(
             parameters.Add("MobileReady", query.MobileReady.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(query.Orientation))
+        {
+            filters.Append(" AND g.orientation = @Orientation");
+            parameters.Add("Orientation", query.Orientation.Trim().ToLowerInvariant());
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Tag))
         {
             filters.Append("""

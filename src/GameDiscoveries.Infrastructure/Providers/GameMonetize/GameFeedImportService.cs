@@ -40,6 +40,7 @@ public sealed class GameFeedImportService(
         var systemicError = false;
         var indexedDocuments = new List<GameSearchDocument>();
         var seenProviderGameIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenGameIds = new HashSet<Guid>();
 
         if (!options.Value.Enabled)
         {
@@ -57,9 +58,10 @@ public sealed class GameFeedImportService(
             await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
             await EnsureProviderAsync(connection, cancellationToken);
 
-            foreach (var item in feedItems)
+            for (var index = 0; index < feedItems.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var item = feedItems[index];
 
                 try
                 {
@@ -71,7 +73,11 @@ public sealed class GameFeedImportService(
                     }
 
                     seenProviderGameIds.Add(external.ProviderGameId);
-                    var (outcome, document) = await UpsertGameAsync(connection, external, feedType, cancellationToken);
+                    var (outcome, document) = await UpsertGameAsync(connection, external, feedType, index + 1, cancellationToken);
+                    if (document is not null && Guid.TryParse(document.Id, out var seenGameId))
+                    {
+                        seenGameIds.Add(seenGameId);
+                    }
                     switch (outcome)
                     {
                         case UpsertOutcome.Created:
@@ -107,6 +113,11 @@ public sealed class GameFeedImportService(
                     errors.Add(message);
                     logger.LogWarning(ex, "Game feed item failed for {FeedType}", feedType);
                 }
+            }
+
+            if (totalReceived > 0 && failed == 0 && seenGameIds.Count > 0)
+            {
+                await RemoveStaleMembershipsAsync(connection, feedType, seenGameIds, cancellationToken);
             }
 
             if (feedType == GameFeedType.Latest && totalReceived > 0 && failed == 0)
@@ -191,6 +202,7 @@ public sealed class GameFeedImportService(
         DbConnection connection,
         ExternalGame external,
         GameFeedType feedType,
+        int position,
         CancellationToken cancellationToken)
     {
         await using var tx = await connection.BeginTransactionAsync(cancellationToken);
@@ -358,7 +370,7 @@ public sealed class GameFeedImportService(
 
         await SyncCategoriesAsync(connection, tx, gameId, external.Categories, cancellationToken);
         await SyncTagsAsync(connection, tx, gameId, external.Tags, cancellationToken);
-        await SyncFeedMembershipAsync(connection, tx, gameId, feedType, cancellationToken);
+        await SyncFeedMembershipAsync(connection, tx, gameId, feedType, position, cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
 
@@ -501,23 +513,43 @@ public sealed class GameFeedImportService(
         IDbTransaction tx,
         Guid gameId,
         GameFeedType feedType,
+        int position,
         CancellationToken cancellationToken)
     {
         await connection.ExecuteAsync(
             new CommandDefinition(
                 """
-                INSERT INTO game_feed_memberships (game_id, feed_type, provider_id, synced_at)
-                VALUES (@GameId, @FeedType, @ProviderId, NOW() AT TIME ZONE 'utc')
+                INSERT INTO game_feed_memberships (game_id, feed_type, provider_id, synced_at, position)
+                VALUES (@GameId, @FeedType, @ProviderId, NOW() AT TIME ZONE 'utc', @Position)
                 ON CONFLICT (game_id, feed_type) DO UPDATE
-                SET synced_at = EXCLUDED.synced_at;
+                SET synced_at = EXCLUDED.synced_at,
+                    position = EXCLUDED.position;
                 """,
                 new
                 {
                     GameId = gameId,
                     FeedType = feedType.ToString(),
-                    ProviderId = GameMonetizeProviderId
+                    ProviderId = GameMonetizeProviderId,
+                    Position = position
                 },
                 transaction: tx,
+                cancellationToken: cancellationToken));
+    }
+
+    private static async Task RemoveStaleMembershipsAsync(
+        DbConnection connection,
+        GameFeedType feedType,
+        HashSet<Guid> seenGameIds,
+        CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                DELETE FROM game_feed_memberships
+                WHERE feed_type = @FeedType
+                  AND NOT (game_id = ANY(@SeenGameIds));
+                """,
+                new { FeedType = feedType.ToString(), SeenGameIds = seenGameIds.ToArray() },
                 cancellationToken: cancellationToken));
     }
 
@@ -606,6 +638,11 @@ public sealed class GameFeedImportService(
                 WHERE provider_id = @ProviderId
                   AND availability_status = 'active'
                   AND NOT (provider_game_id = ANY(@SeenIds))
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM game_feed_memberships fm
+                      WHERE fm.game_id = game_provider_mappings.game_id
+                        AND fm.feed_type <> 'Latest')
                 RETURNING game_id;
                 """,
                 new { ProviderId = GameMonetizeProviderId, SeenIds = seen },
@@ -668,6 +705,7 @@ public sealed class GameFeedImportService(
         [
             "discoveries:home:v1",
             "discoveries:home:v2",
+            "discoveries:home:v3",
             "games:list:newest:p1",
             "games:list:popular:p1"
         ];

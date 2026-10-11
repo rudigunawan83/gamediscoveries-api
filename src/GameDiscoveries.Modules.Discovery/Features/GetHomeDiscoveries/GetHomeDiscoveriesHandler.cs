@@ -16,7 +16,9 @@ public sealed class GetHomeDiscoveriesHandler(
     IEnumerable<IDiscoveryRankingProvider> discoveryRankingProviders,
     ILogger<GetHomeDiscoveriesHandler> logger)
 {
-    private const string CacheKey = "discoveries:home:v2";
+    private const string CacheKey = "discoveries:home:v3";
+    private const int ShelfSize = 12;
+    private const string FeedOrder = "m.position ASC NULLS LAST, g.published_at DESC NULLS LAST, g.title ASC";
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
     public async Task<HomeDiscoveriesResponse> HandleAsync(CancellationToken cancellationToken = default)
@@ -29,58 +31,40 @@ public sealed class GetHomeDiscoveriesHandler(
 
         await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        var featured = await QueryByFeedAsync(connection, "Featured", rankingService.OrderBySqlClause(GameRankingKind.Featured), 12, cancellationToken);
-        var popular = await QueryByFeedAsync(connection, "Popular", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
-        var latest = await QueryByFeedAsync(connection, "Latest", rankingService.OrderBySqlClause(GameRankingKind.Newest), 12, cancellationToken);
-        var multiplayer = await QueryByFeedAsync(connection, "Multiplayer", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
-        var mobile = await QueryByFeedAsync(connection, "Mobile", rankingService.OrderBySqlClause(GameRankingKind.Newest), 12, cancellationToken);
-        var hotGames = await QueryByFeedAsync(connection, "HotGames", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
-        var bestGames = await QueryByFeedAsync(connection, "BestGames", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
-        var mostPlayed = await QueryByFeedAsync(connection, "MostPlayed", rankingService.OrderBySqlClause(GameRankingKind.Popular), 12, cancellationToken);
-        var exclusiveGames = await QueryByFeedAsync(connection, "ExclusiveGames", rankingService.OrderBySqlClause(GameRankingKind.Featured), 12, cancellationToken);
-        var trending = await QueryDiscoveryTrendingAsync(connection, 12, cancellationToken);
+        var featured = await QueryByFeedAsync(connection, "Featured", FeedOrder, ShelfSize, cancellationToken);
+        var latest = await QueryByFeedAsync(connection, "Latest", FeedOrder, ShelfSize, cancellationToken);
+        var multiplayer = await QueryByFeedAsync(connection, "Multiplayer", FeedOrder, ShelfSize, cancellationToken);
+        var mobile = await QueryByFeedAsync(connection, "Mobile", FeedOrder, ShelfSize, cancellationToken);
+        var hotGames = await QueryByFeedAsync(connection, "HotGames", FeedOrder, ShelfSize, cancellationToken);
+        var bestGames = await QueryByFeedAsync(connection, "BestGames", FeedOrder, ShelfSize, cancellationToken);
+        var mostPlayed = await QueryByFeedAsync(connection, "MostPlayed", FeedOrder, ShelfSize, cancellationToken);
+        var exclusiveGames = await QueryByFeedAsync(connection, "ExclusiveGames", FeedOrder, ShelfSize, cancellationToken);
+        var popular = await QueryPopularOnSiteAsync(connection, ShelfSize, cancellationToken);
+        var trending = await QueryDiscoveryTrendingAsync(connection, ShelfSize, cancellationToken);
         if (trending.Count == 0)
         {
-            trending = await QueryTrendingAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Trending), 12, cancellationToken);
+            trending = await QueryTrendingAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Trending), ShelfSize, cancellationToken);
         }
 
         if (latest.Count == 0)
         {
-            latest = await QueryPublishedAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Newest), 12, cancellationToken);
+            latest = await QueryPublishedAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Newest), ShelfSize, cancellationToken);
         }
 
-        if (trending.Count == 0)
+        if (mobile.Count == 0)
         {
-            trending = hotGames.Count > 0
-                ? hotGames
-                : popular.Count > 0
-                    ? popular
-                    : await QueryPublishedAsync(connection, rankingService.OrderBySqlClause(GameRankingKind.Trending), 12, cancellationToken);
+            mobile = await QueryPortraitAsync(connection, ShelfSize, cancellationToken);
+        }
+
+        if (popular.Count < ShelfSize)
+        {
+            var mostPlayedFeed = await QueryByFeedAsync(connection, "MostPlayed", FeedOrder, ShelfSize * 2, cancellationToken);
+            popular = HomeShelves.TopUp(popular, mostPlayedFeed.Skip(mostPlayed.Count), ShelfSize);
         }
 
         if (featured.Count == 0)
         {
             featured = latest.Take(8).ToList();
-        }
-
-        if (popular.Count == 0 && hotGames.Count > 0)
-        {
-            popular = hotGames;
-        }
-
-        if (hotGames.Count == 0)
-        {
-            hotGames = popular.Count > 0 ? popular : trending;
-        }
-
-        if (bestGames.Count == 0)
-        {
-            bestGames = popular.Count > 0 ? popular : trending;
-        }
-
-        if (mostPlayed.Count == 0)
-        {
-            mostPlayed = hotGames.Count > 0 ? hotGames : popular;
         }
 
         if (exclusiveGames.Count == 0)
@@ -96,8 +80,8 @@ public sealed class GetHomeDiscoveriesHandler(
             featured,
             trending,
             latest,
-            popular.Count > 0 ? popular : latest,
-            mobile.Count > 0 ? mobile : latest.Where(g => g.MobileReady).Take(12).ToList(),
+            popular,
+            mobile,
             multiplayer,
             hotGames,
             bestGames,
@@ -147,6 +131,96 @@ public sealed class GetHomeDiscoveriesHandler(
 
         var rows = await connection.QueryAsync<GameSummaryRow>(
             new CommandDefinition(sql, new { FeedType = feedType, Limit = limit }, cancellationToken: cancellationToken));
+        return rows.Select(row => row.ToResponse()).ToList();
+    }
+
+    private static async Task<IReadOnlyList<GameSummaryResponse>> QueryPortraitAsync(
+        DbConnection connection,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT
+                g.id AS Id,
+                g.slug AS Slug,
+                g.title AS Title,
+                g.description AS Description,
+                g.thumbnail_url AS ThumbnailUrl,
+                g.cover_url AS CoverUrl,
+                g.game_url AS GameUrl,
+                cat.name AS Category,
+                g.platform AS Platform,
+                g.mobile_ready AS MobileReady,
+                g.published_at AS PublishedAt
+            FROM games g
+            LEFT JOIN game_feed_memberships m
+                ON m.game_id = g.id AND m.feed_type = 'Latest'
+            LEFT JOIN LATERAL (
+                SELECT c.name
+                FROM game_categories gc
+                INNER JOIN categories c ON c.id = gc.category_id
+                WHERE gc.game_id = g.id
+                ORDER BY c.name
+                LIMIT 1
+            ) cat ON TRUE
+            WHERE g.status = 'published'
+              AND g.mobile_ready
+              AND g.orientation = 'portrait'
+            ORDER BY m.position ASC NULLS LAST, g.published_at DESC NULLS LAST, g.title ASC
+            LIMIT @Limit;
+            """;
+
+        var rows = await connection.QueryAsync<GameSummaryRow>(
+            new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken));
+        return rows.Select(row => row.ToResponse()).ToList();
+    }
+
+    private static async Task<IReadOnlyList<GameSummaryResponse>> QueryPopularOnSiteAsync(
+        DbConnection connection,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            WITH plays AS (
+                SELECT
+                    s.game_id,
+                    COUNT(DISTINCT COALESCE(s.user_id::text, s.anonymous_id::text)) AS players,
+                    COUNT(*) AS sessions,
+                    SUM(s.active_seconds) AS active_seconds
+                FROM game_play_sessions s
+                WHERE s.started_at >= NOW() - INTERVAL '30 days'
+                  AND s.status <> 'INVALID'
+                GROUP BY s.game_id
+            )
+            SELECT
+                g.id AS Id,
+                g.slug AS Slug,
+                g.title AS Title,
+                g.description AS Description,
+                g.thumbnail_url AS ThumbnailUrl,
+                g.cover_url AS CoverUrl,
+                g.game_url AS GameUrl,
+                cat.name AS Category,
+                g.platform AS Platform,
+                g.mobile_ready AS MobileReady,
+                g.published_at AS PublishedAt
+            FROM plays p
+            INNER JOIN games g ON g.id = p.game_id
+            LEFT JOIN LATERAL (
+                SELECT c.name
+                FROM game_categories gc
+                INNER JOIN categories c ON c.id = gc.category_id
+                WHERE gc.game_id = g.id
+                ORDER BY c.name
+                LIMIT 1
+            ) cat ON TRUE
+            WHERE g.status = 'published'
+            ORDER BY p.players DESC, p.sessions DESC, p.active_seconds DESC, g.title ASC
+            LIMIT @Limit;
+            """;
+
+        var rows = await connection.QueryAsync<GameSummaryRow>(
+            new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken));
         return rows.Select(row => row.ToResponse()).ToList();
     }
 

@@ -12,6 +12,8 @@ public sealed record ListGamesQuery : PagedRequest
 
     public bool? MobileReady { get; init; }
 
+    public string? Orientation { get; init; }
+
     public string? Sort { get; init; }
 
     public string? Tag { get; init; }
