@@ -1589,6 +1589,7 @@ GameFeedSync__AdminApiKey=
 GameFeedSync__LatestIntervalMinutes=60
 GameFeedSync__PopularIntervalMinutes=120
 GameFeedSync__CategoryIntervalMinutes=360
+GameFeedSync__FeaturedIntervalMinutes=1440
 
 Authentication__Authority=
 Authentication__Audience=

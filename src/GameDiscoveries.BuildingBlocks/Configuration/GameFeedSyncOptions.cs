@@ -22,7 +22,7 @@ public sealed class GameFeedSyncOptions
 
     public int TwoPlayerIntervalMinutes { get; set; } = 360;
 
-    public int FeaturedIntervalMinutes { get; set; } = 360;
+    public int FeaturedIntervalMinutes { get; set; } = 1440;
 
     public int PopularityIntervalMinutes { get; set; } = 360;
 

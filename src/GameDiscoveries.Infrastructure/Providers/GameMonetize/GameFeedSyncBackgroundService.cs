@@ -1,4 +1,6 @@
+using Dapper;
 using GameDiscoveries.BuildingBlocks.Configuration;
+using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.BuildingBlocks.Feeds;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -12,6 +14,23 @@ public sealed class GameFeedSyncBackgroundService(
     IOptions<GameFeedSyncOptions> options,
     ILogger<GameFeedSyncBackgroundService> logger) : BackgroundService
 {
+    private static readonly GameFeedType[] CategoryFeeds =
+    [
+        GameFeedType.Action,
+        GameFeedType.Puzzle,
+        GameFeedType.Racing,
+        GameFeedType.Sports,
+        GameFeedType.Multiplayer
+    ];
+
+    private static readonly GameFeedType[] PopularityFeeds =
+    [
+        GameFeedType.HotGames,
+        GameFeedType.BestGames,
+        GameFeedType.MostPlayed,
+        GameFeedType.ExclusiveGames
+    ];
+
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private DateTimeOffset _nextLatest = DateTimeOffset.MinValue;
@@ -37,6 +56,8 @@ public sealed class GameFeedSyncBackgroundService(
             await Task.Delay(delay, stoppingToken);
         }
 
+        await RestoreScheduleAsync(sync, stoppingToken);
+
         logger.LogInformation("[GameFeedSync] Background synchronization started");
 
         while (!stoppingToken.IsCancellationRequested)
@@ -56,14 +77,7 @@ public sealed class GameFeedSyncBackgroundService(
             if (now >= _nextCategory)
             {
                 _nextCategory = now.AddMinutes(Math.Max(1, sync.CategoryIntervalMinutes));
-                foreach (var categoryFeed in new[]
-                         {
-                             GameFeedType.Action,
-                             GameFeedType.Puzzle,
-                             GameFeedType.Racing,
-                             GameFeedType.Sports,
-                             GameFeedType.Multiplayer
-                         })
+                foreach (var categoryFeed in CategoryFeeds)
                 {
                     await TryRunAsync(categoryFeed, due: true, markNext: static () => { }, stoppingToken);
                 }
@@ -87,13 +101,7 @@ public sealed class GameFeedSyncBackgroundService(
             if (now >= _nextPopularity)
             {
                 _nextPopularity = now.AddMinutes(Math.Max(1, sync.PopularityIntervalMinutes));
-                foreach (var popularityFeed in new[]
-                         {
-                             GameFeedType.HotGames,
-                             GameFeedType.BestGames,
-                             GameFeedType.MostPlayed,
-                             GameFeedType.ExclusiveGames
-                         })
+                foreach (var popularityFeed in PopularityFeeds)
                 {
                     await TryRunAsync(popularityFeed, due: true, markNext: static () => { }, stoppingToken);
                 }
@@ -101,6 +109,48 @@ public sealed class GameFeedSyncBackgroundService(
 
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
+    }
+
+    // The schedule lives in memory, so without this every restart or deploy would hit all
+    // provider feeds back to back and trip GameMonetize's rate limit (429).
+    private async Task RestoreScheduleAsync(GameFeedSyncOptions sync, CancellationToken cancellationToken)
+    {
+        Dictionary<string, DateTimeOffset> lastSynced;
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>();
+            using var connection = await factory.CreateConnectionAsync(cancellationToken);
+            var rows = await connection.QueryAsync<(string FeedType, DateTime LastSyncedAt)>(new CommandDefinition(
+                "SELECT feed_type, last_synced_at FROM game_feeds WHERE last_synced_at IS NOT NULL",
+                cancellationToken: cancellationToken));
+            lastSynced = rows.ToDictionary(
+                row => row.FeedType,
+                row => new DateTimeOffset(DateTime.SpecifyKind(row.LastSyncedAt, DateTimeKind.Utc)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "[GameFeedSync] Could not restore the sync schedule; all feeds are due now");
+            return;
+        }
+
+        DateTimeOffset Next(int intervalMinutes, params GameFeedType[] feeds) =>
+            feeds.All(feed => lastSynced.ContainsKey(feed.ToString()))
+                ? feeds.Min(feed => lastSynced[feed.ToString()]).AddMinutes(Math.Max(1, intervalMinutes))
+                : DateTimeOffset.MinValue;
+
+        _nextLatest = Next(sync.LatestIntervalMinutes, GameFeedType.Latest);
+        _nextPopular = Next(sync.PopularIntervalMinutes, GameFeedType.Popular);
+        _nextCategory = Next(sync.CategoryIntervalMinutes, CategoryFeeds);
+        _nextMobile = Next(sync.MobileIntervalMinutes, GameFeedType.Mobile);
+        _nextTwoPlayer = Next(sync.TwoPlayerIntervalMinutes, GameFeedType.TwoPlayer);
+        _nextFeatured = Next(sync.FeaturedIntervalMinutes, GameFeedType.Featured);
+        _nextPopularity = Next(sync.PopularityIntervalMinutes, PopularityFeeds);
+
+        logger.LogInformation(
+            "[GameFeedSync] Schedule restored; next Featured sync at {NextFeatured:o}",
+            _nextFeatured == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : _nextFeatured);
     }
 
     private async Task TryRunAsync(
