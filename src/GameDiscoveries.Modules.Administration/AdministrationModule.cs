@@ -1,4 +1,5 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
+using GameDiscoveries.Modules.Administration.Features.Monitoring;
 using GameDiscoveries.Modules.Administration.Features.Providers;
 using GameDiscoveries.Modules.Administration.Features.SyncGameFeeds;
 using Microsoft.AspNetCore.Routing;
@@ -12,12 +13,15 @@ public sealed class AdministrationModule : IModule
 
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IMonitoringService, MonitoringService>();
+        services.AddScoped<ITrafficMonitoringService, TrafficMonitoringService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapSyncGameFeeds();
         endpoints.MapProviderAdminEndpoints();
+        endpoints.MapMonitoring();
     }
 }
 
