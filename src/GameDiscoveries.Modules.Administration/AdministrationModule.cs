@@ -15,6 +15,7 @@ public sealed class AdministrationModule : IModule
     {
         services.AddScoped<IMonitoringService, MonitoringService>();
         services.AddScoped<ITrafficMonitoringService, TrafficMonitoringService>();
+        services.AddScoped<IGameAnalyticsService, GameAnalyticsService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

@@ -32,4 +32,4 @@ public sealed record MonitoringTrafficResponse(
     IReadOnlyList<TrafficPage> LandingPages,
     IReadOnlyList<TrafficExitPage> ExitPages,
     IReadOnlyList<TrafficKeyword> SearchKeywords,
-    MonitoringUnavailable MobileApp);
+    IReadOnlyList<TrafficShare> Platforms);

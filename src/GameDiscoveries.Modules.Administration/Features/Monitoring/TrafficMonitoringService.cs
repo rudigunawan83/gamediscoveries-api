@@ -24,9 +24,6 @@ public sealed class TrafficMonitoringService(
     private static readonly MonitoringUnavailable Countries = new(
         "Country is not collected. Only salted IP hashes are stored, and no geo lookup is configured.");
 
-    private static readonly MonitoringUnavailable MobileApp = new(
-        "The mobile app does not send page view or search events yet, so these numbers cover the website only.");
-
     public async Task<MonitoringTrafficResponse> GetTrafficAsync(
         MonitoringWindow window,
         bool bypassCache,
@@ -96,10 +93,10 @@ public sealed class TrafficMonitoringService(
                 MonitoringMath.ChangePercent(sessions.AverageSeconds, previousSessions.AverageSeconds)),
             new TrafficVisitorMix(mix.NewVisitors, mix.ReturningVisitors),
             trend.Select(row => new TrafficPoint(AsUtc(row.Bucket), row.Visitors, row.PageViews)).ToList(),
-            Shares(landings, row => TrafficClassifier.Source(row.ReferrerHost, row.PageHost, row.UtmMedium, row.HasAdClickId), TrafficClassifier.SourceOrder),
+            Shares(landings, SourceOf, TrafficClassifier.SourceOrder),
             Countries,
             Shares(landings, row => TrafficClassifier.Device(row.DeviceType), null),
-            Shares(landings, row => TrafficClassifier.Browser(row.UserAgent), null),
+            Shares(landings, BrowserOf, null),
             landingPages.Select(row => new TrafficPage(
                 row.Label,
                 row.Hits,
@@ -112,8 +109,16 @@ public sealed class TrafficMonitoringService(
                 row.Label,
                 row.Hits,
                 MonitoringMath.ChangePercent(row.Hits, row.PreviousHits))).ToList(),
-            MobileApp);
+            Shares(landings, row => TrafficClassifier.Platform(row.Source, row.Platform), null));
     }
+
+    private static string SourceOf(LandingRow row) =>
+        TrafficClassifier.IsApp(row.Source)
+            ? TrafficClassifier.MobileApp
+            : TrafficClassifier.Source(row.ReferrerHost, row.PageHost, row.UtmMedium, row.HasAdClickId);
+
+    private static string BrowserOf(LandingRow row) =>
+        TrafficClassifier.IsApp(row.Source) ? TrafficClassifier.AppBrowser : TrafficClassifier.Browser(row.UserAgent);
 
     private static IReadOnlyList<TrafficShare> Shares(
         IEnumerable<LandingRow> rows,
@@ -145,9 +150,12 @@ public sealed class TrafficMonitoringService(
     private const string PathExpression =
         "COALESCE(NULLIF(substring(page_url from '^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]+([^?#]*)'), ''), '/')";
 
+    // The website sends PAGE_VIEW; the mobile app sends SCREEN_VIEW for each screen.
+    private const string IsView = "event_name IN ('PAGE_VIEW', 'SCREEN_VIEW')";
+
     private const string CountSql =
-        """
-        SELECT COUNT(*) FILTER (WHERE event_name = 'PAGE_VIEW')::bigint AS PageViews,
+        $"""
+        SELECT COUNT(*) FILTER (WHERE {IsView})::bigint AS PageViews,
                COUNT(DISTINCT COALESCE(anonymous_id::text, user_id::text))::bigint AS UniqueVisitors
         FROM analytics_events
         WHERE occurred_at >= @From AND occurred_at < @To
@@ -184,10 +192,10 @@ public sealed class TrafficMonitoringService(
         """;
 
     private const string DailyTrendSql =
-        """
+        $"""
         SELECT date_trunc('day', occurred_at) AS Bucket,
                COUNT(DISTINCT COALESCE(anonymous_id::text, user_id::text))::bigint AS Visitors,
-               COUNT(*) FILTER (WHERE event_name = 'PAGE_VIEW')::bigint AS PageViews
+               COUNT(*) FILTER (WHERE {IsView})::bigint AS PageViews
         FROM analytics_events
         WHERE occurred_at >= @From AND occurred_at < @To
         GROUP BY 1
@@ -195,10 +203,10 @@ public sealed class TrafficMonitoringService(
         """;
 
     private const string HourlyTrendSql =
-        """
+        $"""
         SELECT date_trunc('hour', occurred_at) AS Bucket,
                COUNT(DISTINCT COALESCE(anonymous_id::text, user_id::text))::bigint AS Visitors,
-               COUNT(*) FILTER (WHERE event_name = 'PAGE_VIEW')::bigint AS PageViews
+               COUNT(*) FILTER (WHERE {IsView})::bigint AS PageViews
         FROM analytics_events
         WHERE occurred_at >= @From AND occurred_at < @To
         GROUP BY 1
@@ -209,7 +217,7 @@ public sealed class TrafficMonitoringService(
         """
         WITH landings AS (
             SELECT DISTINCT ON (session_id)
-                   referrer_url, page_url, device_type, user_agent
+                   referrer_url, page_url, device_type, user_agent, source, platform
             FROM analytics_events
             WHERE occurred_at >= @From AND occurred_at < @To
               AND session_id IS NOT NULL
@@ -221,9 +229,11 @@ public sealed class TrafficMonitoringService(
                COALESCE(page_url ~* '[?&](gclid|gbraid|wbraid|msclkid|dclid)=', false) AS HasAdClickId,
                device_type AS DeviceType,
                user_agent AS UserAgent,
+               source AS Source,
+               platform AS Platform,
                COUNT(*)::bigint AS Sessions
         FROM landings
-        GROUP BY 1, 2, 3, 4, 5, 6
+        GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
         """;
 
     private const string LandingPagesSql =
@@ -231,7 +241,7 @@ public sealed class TrafficMonitoringService(
         WITH firsts AS (
             SELECT DISTINCT ON (session_id) page_url, occurred_at
             FROM analytics_events
-            WHERE event_name = 'PAGE_VIEW'
+            WHERE {IsView}
               AND occurred_at >= @PrevFrom AND occurred_at < @To
               AND session_id IS NOT NULL
               AND page_url IS NOT NULL
@@ -257,7 +267,7 @@ public sealed class TrafficMonitoringService(
         WITH views AS (
             SELECT session_id, occurred_at, left({PathExpression}, 300) AS path
             FROM analytics_events
-            WHERE event_name = 'PAGE_VIEW'
+            WHERE {IsView}
               AND occurred_at >= @From AND occurred_at < @To
               AND page_url IS NOT NULL
         ),
@@ -337,6 +347,8 @@ public sealed class TrafficMonitoringService(
         public bool HasAdClickId { get; init; }
         public string? DeviceType { get; init; }
         public string? UserAgent { get; init; }
+        public string? Source { get; init; }
+        public string? Platform { get; init; }
         public long Sessions { get; init; }
     }
 

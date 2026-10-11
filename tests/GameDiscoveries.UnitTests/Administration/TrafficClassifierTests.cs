@@ -52,4 +52,27 @@ public class TrafficClassifierTests
     {
         TrafficClassifier.Device(deviceType).Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData("WEB", "WEB", "web")]
+    [InlineData("WEB", "ANDROID", "web")]
+    [InlineData(null, null, "web")]
+    [InlineData("MOBILE", "ANDROID", "android")]
+    [InlineData("mobile", "ios", "ios")]
+    [InlineData("MOBILE", "UNKNOWN", "app")]
+    public void Platform_separates_the_website_from_the_mobile_app(
+        string? eventSource,
+        string? platform,
+        string expected)
+    {
+        TrafficClassifier.Platform(eventSource, platform).Should().Be(expected);
+    }
+
+    [Fact]
+    public void Mobile_app_is_a_traffic_source_before_others()
+    {
+        TrafficClassifier.SourceOrder.Should().ContainInOrder(TrafficClassifier.MobileApp, TrafficClassifier.Others);
+        TrafficClassifier.IsApp("MOBILE").Should().BeTrue();
+        TrafficClassifier.IsApp("WEB").Should().BeFalse();
+    }
 }

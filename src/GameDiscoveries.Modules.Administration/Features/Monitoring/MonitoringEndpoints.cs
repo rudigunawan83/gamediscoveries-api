@@ -59,6 +59,31 @@ public static class MonitoringEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
 
+        endpoints.MapGet("/api/v1/admin/monitoring/games", async (
+                string? range,
+                bool? refresh,
+                IGameAnalyticsService games,
+                CancellationToken cancellationToken) =>
+            {
+                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var result = await games.GetGamesAsync(window, refresh == true, cancellationToken);
+                return Results.Ok(ApiResponse<MonitoringGamesResponse>.Ok(result));
+            })
+            .WithName("GetMonitoringGames")
+            .WithTags("Administration", "Monitoring")
+            .WithSummary("Read-only game performance and engagement for super admins.")
+            .WithDescription(
+                "Aggregates play sessions: plays, unique players, server-measured playtime, playtime " +
+                "distribution, top games, plays by category, and new versus returning players. " +
+                "Launch success is unavailable because the player does not report load failures. " +
+                "Results are cached for 5 minutes unless refresh=true.")
+            .RequireAuthorization(Policies.SuperAdminOnly)
+            .RequireRateLimiting("public")
+            .Produces(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
         return endpoints;
     }
 }

@@ -9,10 +9,13 @@ public static partial class TrafficClassifier
     public const string Social = "social";
     public const string Referral = "referral";
     public const string PaidAds = "paid_ads";
+    public const string MobileApp = "mobile_app";
     public const string Others = "others";
 
+    public const string AppBrowser = "Mobile App";
+
     public static readonly IReadOnlyList<string> SourceOrder =
-        [OrganicSearch, Direct, Social, Referral, PaidAds, Others];
+        [OrganicSearch, Direct, Social, Referral, PaidAds, MobileApp, Others];
 
     private static readonly string[] PaidMediums =
         ["cpc", "ppc", "paid", "paidsearch", "paid_search", "paidsocial", "paid_social", "display", "cpm", "banner"];
@@ -76,6 +79,20 @@ public static partial class TrafficClassifier
         if (userAgent.Contains("Safari/", StringComparison.Ordinal)) return "Safari";
         return "Other";
     }
+
+    /// <summary>Events from the Flutter app are ingested with source MOBILE.</summary>
+    public static bool IsApp(string? eventSource) =>
+        string.Equals(eventSource?.Trim(), "MOBILE", StringComparison.OrdinalIgnoreCase);
+
+    public static string Platform(string? eventSource, string? platform) =>
+        !IsApp(eventSource)
+            ? "web"
+            : platform?.Trim().ToUpperInvariant() switch
+            {
+                "ANDROID" => "android",
+                "IOS" => "ios",
+                _ => "app"
+            };
 
     public static string Device(string? deviceType) =>
         deviceType?.Trim().ToUpperInvariant() switch
