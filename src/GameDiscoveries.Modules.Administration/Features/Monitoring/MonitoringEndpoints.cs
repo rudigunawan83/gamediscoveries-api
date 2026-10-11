@@ -84,6 +84,55 @@ public static class MonitoringEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
 
+        endpoints.MapGet("/api/v1/admin/monitoring/users", async (
+                string? range,
+                bool? refresh,
+                IUserRetentionService users,
+                CancellationToken cancellationToken) =>
+            {
+                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var result = await users.GetUsersAsync(window, refresh == true, cancellationToken);
+                return Results.Ok(ApiResponse<MonitoringUsersResponse>.Ok(result));
+            })
+            .WithName("GetMonitoringUsers")
+            .WithTags("Administration", "Monitoring")
+            .WithSummary("Read-only user activity and retention for super admins.")
+            .WithDescription(
+                "Aggregates analytics events from the website and the app per device: DAU, WAU, MAU, " +
+                "new and returning users, weekly cohorts, D1/D7/D30 retention, engagement, an activity " +
+                "heatmap in UTC, top games by players, and new users by acquisition source. " +
+                "Results are cached for 10 minutes unless refresh=true.")
+            .RequireAuthorization(Policies.SuperAdminOnly)
+            .RequireRateLimiting("public")
+            .Produces(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
+        endpoints.MapGet("/api/v1/admin/monitoring/gamification", async (
+                string? range,
+                bool? refresh,
+                IGamificationAnalyticsService gamification,
+                CancellationToken cancellationToken) =>
+            {
+                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var result = await gamification.GetGamificationAsync(window, refresh == true, cancellationToken);
+                return Results.Ok(ApiResponse<MonitoringGamificationResponse>.Ok(result));
+            })
+            .WithName("GetMonitoringGamification")
+            .WithTags("Administration", "Monitoring")
+            .WithSummary("Read-only XP, mission, achievement, and streak analytics for super admins.")
+            .WithDescription(
+                "Aggregates XP transactions, mission completions, achievement unlocks, levels, and streaks. " +
+                "Seeded demo accounts are excluded. Levels and streaks are current snapshots. " +
+                "Results are cached for 5 minutes unless refresh=true.")
+            .RequireAuthorization(Policies.SuperAdminOnly)
+            .RequireRateLimiting("public")
+            .Produces(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
         return endpoints;
     }
 }
