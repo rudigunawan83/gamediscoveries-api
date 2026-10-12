@@ -2,6 +2,7 @@ using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.Modules.Administration.Features.Monitoring;
 using GameDiscoveries.Modules.Administration.Features.Providers;
 using GameDiscoveries.Modules.Administration.Features.SyncGameFeeds;
+using GameDiscoveries.Modules.Administration.Features.Users;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -31,6 +32,7 @@ public sealed class AdministrationModule : IModule
             client.Timeout = TimeSpan.FromSeconds(20));
         services.AddSingleton<ISearchConsoleClient, SearchConsoleClient>();
         services.AddScoped<ISeoMonitoringService, SeoMonitoringService>();
+        services.AddScoped<IAdminUsersService, AdminUsersService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -38,6 +40,7 @@ public sealed class AdministrationModule : IModule
         endpoints.MapSyncGameFeeds();
         endpoints.MapProviderAdminEndpoints();
         endpoints.MapMonitoring();
+        endpoints.MapAdminUsers();
     }
 }
 
