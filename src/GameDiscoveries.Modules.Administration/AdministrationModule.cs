@@ -4,6 +4,7 @@ using GameDiscoveries.Modules.Administration.Features.Providers;
 using GameDiscoveries.Modules.Administration.Features.SyncGameFeeds;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace GameDiscoveries.Modules.Administration;
 
@@ -18,6 +19,18 @@ public sealed class AdministrationModule : IModule
         services.AddScoped<IGameAnalyticsService, GameAnalyticsService>();
         services.AddScoped<IUserRetentionService, UserRetentionService>();
         services.AddScoped<IGamificationAnalyticsService, GamificationAnalyticsService>();
+
+        services.AddOptions<SearchConsoleOptions>()
+            .BindConfiguration(SearchConsoleOptions.SectionName)
+            .Validate(
+                o => Uri.TryCreate(o.SiteUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps,
+                "SearchConsole:SiteUrl must be an absolute https URL.")
+            .ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddHttpClient(SearchConsoleClient.HttpClientName, client =>
+            client.Timeout = TimeSpan.FromSeconds(20));
+        services.AddSingleton<ISearchConsoleClient, SearchConsoleClient>();
+        services.AddScoped<ISeoMonitoringService, SeoMonitoringService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

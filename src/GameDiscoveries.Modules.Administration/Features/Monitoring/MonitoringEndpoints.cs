@@ -133,6 +133,31 @@ public static class MonitoringEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
 
+        endpoints.MapGet("/api/v1/admin/monitoring/seo", async (
+                string? range,
+                bool? refresh,
+                ISeoMonitoringService seo,
+                CancellationToken cancellationToken) =>
+            {
+                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var result = await seo.GetSeoAsync(window, refresh == true, cancellationToken);
+                return Results.Ok(ApiResponse<MonitoringSeoResponse>.Ok(result));
+            })
+            .WithName("GetMonitoringSeo")
+            .WithTags("Administration", "Monitoring")
+            .WithSummary("Read-only Google Search performance, sitemaps, and Core Web Vitals for super admins.")
+            .WithDescription(
+                "Reads Google Search Console (clicks, impressions, CTR, position, pages, queries, countries, " +
+                "devices, sitemaps) with a service account and Core Web Vitals from the Chrome UX Report. " +
+                "Dates are Search Console days (Pacific Time) ending yesterday. Sections without access are " +
+                "returned as unavailable with a reason. Results are cached for 30 minutes unless refresh=true.")
+            .RequireAuthorization(Policies.SuperAdminOnly)
+            .RequireRateLimiting("public")
+            .Produces(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
         return endpoints;
     }
 }
