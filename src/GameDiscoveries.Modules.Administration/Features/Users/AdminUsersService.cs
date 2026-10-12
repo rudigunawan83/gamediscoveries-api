@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.Text;
 using Dapper;
@@ -133,10 +134,10 @@ public sealed class AdminUsersService(IDbConnectionFactory connectionFactory, Ti
     private static DynamicParameters Parameters(AdminUsersFilter filter, int limit, int offset)
     {
         var parameters = new DynamicParameters();
-        parameters.Add("Search", filter.Search is null ? null : $"%{filter.Search}%");
-        parameters.Add("Status", filter.Status);
-        parameters.Add("Role", filter.Role);
-        parameters.Add("JoinedFrom", filter.JoinedFrom);
+        parameters.Add("Search", filter.Search is null ? null : $"%{filter.Search}%", DbType.String);
+        parameters.Add("Status", filter.Status, DbType.String);
+        parameters.Add("Role", filter.Role, DbType.String);
+        parameters.Add("JoinedFrom", filter.JoinedFrom, DbType.DateTimeOffset);
         parameters.Add("Limit", limit);
         parameters.Add("Offset", offset);
         return parameters;
@@ -157,7 +158,8 @@ public sealed class AdminUsersService(IDbConnectionFactory connectionFactory, Ti
             """;
     }
 
-    private const string RoleFilter = "(@Role IS NULL OR role = @Role)";
+    // Untyped null parameters cannot be inferred by PostgreSQL (42P08), so every filter is cast.
+    private const string RoleFilter = "(@Role::text IS NULL OR role = @Role::text)";
 
     // Last active is the latest of tracked events, play sessions, and gamification activity.
     private const string BaseSql =
@@ -190,9 +192,9 @@ public sealed class AdminUsersService(IDbConnectionFactory connectionFactory, Ti
                    COUNT(DISTINCT s.game_id) FILTER (WHERE s.is_valid) AS games
             FROM game_play_sessions s WHERE s.user_id = u.id
         ) gs ON TRUE
-        WHERE (@Search IS NULL OR u.email ILIKE @Search OR u.display_name ILIKE @Search
-               OR u.username ILIKE @Search OR u.id::text ILIKE @Search)
-          AND (@Status IS NULL OR u.status = @Status)
+        WHERE (@Search::text IS NULL OR u.email ILIKE @Search::text OR u.display_name ILIKE @Search::text
+               OR u.username ILIKE @Search::text OR u.id::text ILIKE @Search::text)
+          AND (@Status::text IS NULL OR u.status = @Status::text)
           AND (@JoinedFrom::timestamptz IS NULL OR u.created_at >= @JoinedFrom::timestamptz)
         """;
 
