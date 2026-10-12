@@ -74,18 +74,18 @@ public sealed class MonitoringService(
             cancellationToken: cancellationToken));
 
         var newUsers = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
-            """
+            $"""
             SELECT COUNT(*)::bigint
             FROM users
-            WHERE created_at >= @From AND created_at < @To
+            WHERE created_at >= @From AND created_at < @To AND {MonitoringAudience.IsRealUser}
             """,
             args,
             cancellationToken: cancellationToken));
         var previousUsers = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
-            """
+            $"""
             SELECT COUNT(*)::bigint
             FROM users
-            WHERE created_at >= @PrevFrom AND created_at < @From
+            WHERE created_at >= @PrevFrom AND created_at < @From AND {MonitoringAudience.IsRealUser}
             """,
             args,
             cancellationToken: cancellationToken));
@@ -192,11 +192,11 @@ public sealed class MonitoringService(
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 
     private const string CountSql =
-        """
+        $"""
         SELECT COUNT(*)::bigint AS Plays,
                COUNT(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL)::bigint AS ActiveUsers
         FROM game_play_sessions
-        WHERE started_at >= @From AND started_at < @To
+        WHERE started_at >= @From AND started_at < @To AND {MonitoringAudience.IsRealActivity}
         """;
 
     private static readonly string DailySeriesSql = SeriesSql("day");
@@ -205,7 +205,18 @@ public sealed class MonitoringService(
 
     private static string SeriesSql(string unit) =>
         $$"""
-        WITH buckets AS (
+        WITH real_plays AS MATERIALIZED (
+            SELECT user_id, started_at
+            FROM game_play_sessions
+            WHERE started_at >= @From::timestamptz - interval '30 days' AND started_at < @To
+              AND {{MonitoringAudience.IsRealActivity}}
+        ),
+        real_users AS MATERIALIZED (
+            SELECT created_at
+            FROM users
+            WHERE created_at >= @From AND created_at < @To AND {{MonitoringAudience.IsRealUser}}
+        ),
+        buckets AS (
             SELECT generate_series(
                        date_trunc('{{unit}}', @From::timestamptz),
                        date_trunc('{{unit}}', @To::timestamptz - interval '1 microsecond'),
@@ -218,20 +229,20 @@ public sealed class MonitoringService(
             FROM buckets
         )
         SELECT s.bucket AS Bucket,
-               (SELECT COUNT(*) FROM game_play_sessions p
+               (SELECT COUNT(*) FROM real_plays p
                 WHERE p.started_at >= s.span_start AND p.started_at < s.span_end)::bigint AS Plays,
-               (SELECT COUNT(DISTINCT p.user_id) FROM game_play_sessions p
+               (SELECT COUNT(DISTINCT p.user_id) FROM real_plays p
                 WHERE p.user_id IS NOT NULL
                   AND p.started_at >= s.span_start AND p.started_at < s.span_end)::bigint AS ActiveUsers,
-               (SELECT COUNT(*) FROM users u
+               (SELECT COUNT(*) FROM real_users u
                 WHERE u.created_at >= s.span_start AND u.created_at < s.span_end)::bigint AS NewUsers,
-               (SELECT COUNT(DISTINCT p.user_id) FROM game_play_sessions p
+               (SELECT COUNT(DISTINCT p.user_id) FROM real_plays p
                 WHERE p.user_id IS NOT NULL
                   AND p.started_at >= s.span_end - interval '1 day' AND p.started_at < s.span_end)::bigint AS Dau,
-               (SELECT COUNT(DISTINCT p.user_id) FROM game_play_sessions p
+               (SELECT COUNT(DISTINCT p.user_id) FROM real_plays p
                 WHERE p.user_id IS NOT NULL
                   AND p.started_at >= s.span_end - interval '7 days' AND p.started_at < s.span_end)::bigint AS Wau,
-               (SELECT COUNT(DISTINCT p.user_id) FROM game_play_sessions p
+               (SELECT COUNT(DISTINCT p.user_id) FROM real_plays p
                 WHERE p.user_id IS NOT NULL
                   AND p.started_at >= s.span_end - interval '30 days' AND p.started_at < s.span_end)::bigint AS Mau
         FROM spans s
@@ -239,11 +250,11 @@ public sealed class MonitoringService(
         """;
 
     private const string TopGamesSql =
-        """
+        $"""
         WITH current_games AS (
             SELECT game_id, COUNT(*)::bigint AS plays
             FROM game_play_sessions
-            WHERE started_at >= @From AND started_at < @To
+            WHERE started_at >= @From AND started_at < @To AND {MonitoringAudience.IsRealActivity}
             GROUP BY game_id
             ORDER BY plays DESC
             LIMIT 5
@@ -259,6 +270,7 @@ public sealed class MonitoringService(
             FROM game_play_sessions
             WHERE started_at >= @PrevFrom AND started_at < @From
               AND game_id IN (SELECT game_id FROM current_games)
+              AND {MonitoringAudience.IsRealActivity}
             GROUP BY game_id
         ) p ON p.game_id = c.game_id
         ORDER BY c.plays DESC

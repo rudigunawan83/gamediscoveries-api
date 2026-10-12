@@ -240,7 +240,9 @@ public sealed class UserRetentionService(
     // A device keeps its anonymous id across sign-in, so it is the stable user key.
     private const string VisitorKey = "COALESCE(anonymous_id::text, user_id::text)";
 
-    private const string HasVisitor = "(anonymous_id IS NOT NULL OR user_id IS NOT NULL)";
+    private const string IsReal = MonitoringAudience.IsRealActivity;
+
+    private const string HasVisitor = $"((anonymous_id IS NOT NULL OR user_id IS NOT NULL) AND {IsReal})";
 
     private const string PlayerKey = "COALESCE(user_id::text, anonymous_id::text)";
 
@@ -398,21 +400,21 @@ public sealed class UserRetentionService(
     private const string EngagementSql =
         $"""
         SELECT (SELECT COUNT(*) FROM analytics_sessions
-                WHERE started_at >= @From AND started_at < @To)::bigint AS Sessions,
+                WHERE started_at >= @From AND started_at < @To AND {IsReal})::bigint AS Sessions,
                (SELECT COUNT(DISTINCT {VisitorKey}) FROM analytics_sessions
-                WHERE started_at >= @From AND started_at < @To)::bigint AS SessionUsers,
+                WHERE started_at >= @From AND started_at < @To AND {IsReal})::bigint AS SessionUsers,
                (SELECT AVG(EXTRACT(EPOCH FROM (last_activity_at - started_at))) FROM analytics_sessions
-                WHERE started_at >= @From AND started_at < @To)::double precision AS AverageSessionSeconds,
+                WHERE started_at >= @From AND started_at < @To AND {IsReal})::double precision AS AverageSessionSeconds,
                (SELECT COUNT(*) FROM analytics_events
                 WHERE {IsView} AND session_id IS NOT NULL
-                  AND occurred_at >= @From AND occurred_at < @To)::bigint AS Views,
+                  AND occurred_at >= @From AND occurred_at < @To AND {IsReal})::bigint AS Views,
                (SELECT COUNT(DISTINCT session_id) FROM analytics_events
                 WHERE {IsView} AND session_id IS NOT NULL
-                  AND occurred_at >= @From AND occurred_at < @To)::bigint AS ViewSessions,
+                  AND occurred_at >= @From AND occurred_at < @To AND {IsReal})::bigint AS ViewSessions,
                (SELECT COUNT(DISTINCT {PlayerKey} || ':' || game_id::text) FROM game_play_sessions
-                WHERE started_at >= @From AND started_at < @To)::bigint AS PlayerGames,
+                WHERE started_at >= @From AND started_at < @To AND {IsReal})::bigint AS PlayerGames,
                (SELECT COUNT(DISTINCT {PlayerKey}) FROM game_play_sessions
-                WHERE started_at >= @From AND started_at < @To)::bigint AS Players
+                WHERE started_at >= @From AND started_at < @To AND {IsReal})::bigint AS Players
         """;
 
     // Repeat players played the game on more than one UTC day in the range.
@@ -425,6 +427,7 @@ public sealed class UserRetentionService(
             FROM game_play_sessions
             WHERE started_at >= @From AND started_at < @To
               AND (user_id IS NOT NULL OR anonymous_id IS NOT NULL)
+              AND {IsReal}
             GROUP BY 1, 2
         ),
         ranked AS (
@@ -441,6 +444,7 @@ public sealed class UserRetentionService(
             FROM game_play_sessions
             WHERE started_at >= @PrevFrom AND started_at < @From
               AND game_id IN (SELECT game_id FROM ranked)
+              AND {IsReal}
             GROUP BY game_id
         )
         SELECT g.title AS Title,
