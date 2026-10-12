@@ -27,4 +27,10 @@ public sealed class GameSessionOptions
     /// Cap credited active delta per heartbeat to avoid clock skew abuse.
     /// </summary>
     public int MaxHeartbeatCreditSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Open sessions without any client call for this long are ended with reason TIMEOUT.
+    /// Long enough that a backgrounded tab can still resume.
+    /// </summary>
+    public int IdleSessionTimeoutMinutes { get; set; } = 30;
 }

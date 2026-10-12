@@ -58,6 +58,7 @@ try
         scope.ServiceProvider.ApplyDatabaseMigrations();
     }
 
+    app.UseForwardedHeaders();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
 

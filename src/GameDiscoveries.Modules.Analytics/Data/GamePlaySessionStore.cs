@@ -18,6 +18,12 @@ public interface IGamePlaySessionStore
         Guid gameId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Open sessions with no client activity since <paramref name="idleBefore"/>, oldest first.</summary>
+    Task<IReadOnlyList<GamePlaySessionEntity>> GetIdleOpenSessionsAsync(
+        DateTimeOffset idleBefore,
+        int limit,
+        CancellationToken cancellationToken = default);
+
     Task InsertAsync(GamePlaySessionEntity entity, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(GamePlaySessionEntity entity, CancellationToken cancellationToken = default);
@@ -27,6 +33,36 @@ public interface IGamePlaySessionStore
 
 public sealed class GamePlaySessionStore(IDbConnectionFactory connectionFactory) : IGamePlaySessionStore
 {
+    private const string SessionColumns =
+        """
+        id AS Id,
+        session_id AS SessionId,
+        user_id AS UserId,
+        anonymous_id AS AnonymousId,
+        game_id AS GameId,
+        status AS Status,
+        started_at AS StartedAt,
+        last_heartbeat_at AS LastHeartbeatAt,
+        paused_at AS PausedAt,
+        resumed_at AS ResumedAt,
+        ended_at AS EndedAt,
+        duration_seconds AS DurationSeconds,
+        active_seconds AS ActiveSeconds,
+        accumulated_active_ms AS AccumulatedActiveMs,
+        is_valid AS IsValid,
+        invalid_reason AS InvalidReason,
+        source AS Source,
+        platform AS Platform,
+        device_type AS DeviceType,
+        app_version AS AppVersion,
+        pause_reason AS PauseReason,
+        end_reason AS EndReason,
+        last_heartbeat_analytics_at AS LastHeartbeatAnalyticsAt,
+        heartbeat_count AS HeartbeatCount,
+        created_at AS CreatedAt,
+        updated_at AS UpdatedAt
+        """;
+
     public async Task<bool> GameIsPublishedAsync(Guid gameId, CancellationToken cancellationToken = default)
     {
         await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
@@ -42,34 +78,8 @@ public sealed class GamePlaySessionStore(IDbConnectionFactory connectionFactory)
     {
         await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
         return await connection.QuerySingleOrDefaultAsync<GamePlaySessionEntity>(new CommandDefinition(
-            """
-            SELECT
-                id AS Id,
-                session_id AS SessionId,
-                user_id AS UserId,
-                anonymous_id AS AnonymousId,
-                game_id AS GameId,
-                status AS Status,
-                started_at AS StartedAt,
-                last_heartbeat_at AS LastHeartbeatAt,
-                paused_at AS PausedAt,
-                resumed_at AS ResumedAt,
-                ended_at AS EndedAt,
-                duration_seconds AS DurationSeconds,
-                active_seconds AS ActiveSeconds,
-                accumulated_active_ms AS AccumulatedActiveMs,
-                is_valid AS IsValid,
-                invalid_reason AS InvalidReason,
-                source AS Source,
-                platform AS Platform,
-                device_type AS DeviceType,
-                app_version AS AppVersion,
-                pause_reason AS PauseReason,
-                end_reason AS EndReason,
-                last_heartbeat_analytics_at AS LastHeartbeatAnalyticsAt,
-                heartbeat_count AS HeartbeatCount,
-                created_at AS CreatedAt,
-                updated_at AS UpdatedAt
+            $"""
+            SELECT {SessionColumns}
             FROM game_play_sessions
             WHERE session_id = @SessionId
             """,
@@ -85,34 +95,8 @@ public sealed class GamePlaySessionStore(IDbConnectionFactory connectionFactory)
     {
         await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
         var rows = await connection.QueryAsync<GamePlaySessionEntity>(new CommandDefinition(
-            """
-            SELECT
-                id AS Id,
-                session_id AS SessionId,
-                user_id AS UserId,
-                anonymous_id AS AnonymousId,
-                game_id AS GameId,
-                status AS Status,
-                started_at AS StartedAt,
-                last_heartbeat_at AS LastHeartbeatAt,
-                paused_at AS PausedAt,
-                resumed_at AS ResumedAt,
-                ended_at AS EndedAt,
-                duration_seconds AS DurationSeconds,
-                active_seconds AS ActiveSeconds,
-                accumulated_active_ms AS AccumulatedActiveMs,
-                is_valid AS IsValid,
-                invalid_reason AS InvalidReason,
-                source AS Source,
-                platform AS Platform,
-                device_type AS DeviceType,
-                app_version AS AppVersion,
-                pause_reason AS PauseReason,
-                end_reason AS EndReason,
-                last_heartbeat_analytics_at AS LastHeartbeatAnalyticsAt,
-                heartbeat_count AS HeartbeatCount,
-                created_at AS CreatedAt,
-                updated_at AS UpdatedAt
+            $"""
+            SELECT {SessionColumns}
             FROM game_play_sessions
             WHERE game_id = @GameId
               AND status = ANY(@OpenStatuses)
@@ -127,6 +111,31 @@ public sealed class GamePlaySessionStore(IDbConnectionFactory connectionFactory)
                 UserId = userId,
                 AnonymousId = anonymousId,
                 OpenStatuses = GamePlaySessionStatuses.Open.ToArray()
+            },
+            cancellationToken: cancellationToken));
+
+        return rows.ToList();
+    }
+
+    public async Task<IReadOnlyList<GamePlaySessionEntity>> GetIdleOpenSessionsAsync(
+        DateTimeOffset idleBefore,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = (DbConnection)await connectionFactory.CreateConnectionAsync(cancellationToken);
+        var rows = await connection.QueryAsync<GamePlaySessionEntity>(new CommandDefinition(
+            $"""
+            SELECT {SessionColumns}
+            FROM game_play_sessions
+            WHERE status = ANY(@OpenStatuses) AND updated_at < @IdleBefore
+            ORDER BY updated_at
+            LIMIT @Limit
+            """,
+            new
+            {
+                OpenStatuses = GamePlaySessionStatuses.Open.ToArray(),
+                IdleBefore = idleBefore,
+                Limit = limit
             },
             cancellationToken: cancellationToken));
 

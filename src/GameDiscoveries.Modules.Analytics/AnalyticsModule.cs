@@ -29,6 +29,7 @@ public sealed class AnalyticsModule : IModule
             .Validate(o => o.HeartbeatTimeoutSeconds is >= 30 and <= 600, "GameSession:HeartbeatTimeoutSeconds must be 30..600.")
             .Validate(o => o.MinimumValidActiveSeconds is >= 0 and <= 600, "GameSession:MinimumValidActiveSeconds must be 0..600.")
             .Validate(o => o.MaximumSessionDurationSeconds is >= 60 and <= 86_400, "GameSession:MaximumSessionDurationSeconds must be 60..86400.")
+            .Validate(o => o.IdleSessionTimeoutMinutes is >= 5 and <= 1_440, "GameSession:IdleSessionTimeoutMinutes must be 5..1440.")
             .ValidateOnStart();
 
         services.AddScoped<IAnalyticsEventStore, AnalyticsEventStore>();
@@ -37,6 +38,7 @@ public sealed class AnalyticsModule : IModule
         services.AddScoped<IAnalyticsEventDispatcher, AnalyticsEventDispatcher>();
         services.AddScoped<IGamePlaySessionStore, GamePlaySessionStore>();
         services.AddScoped<IGamePlaySessionService, GamePlaySessionService>();
+        services.AddHostedService<IdleSessionSweeperHostedService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)

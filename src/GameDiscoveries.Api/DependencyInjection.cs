@@ -32,6 +32,7 @@ using GameDiscoveries.Modules.Search;
 using GameDiscoveries.Modules.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Metrics;
@@ -62,6 +63,7 @@ public static class DependencyInjection
         services.AddGameDiscoveriesOpenApi();
         services.AddAuthenticationFoundation(configuration);
         services.AddCorsPolicy(configuration);
+        services.AddForwardedClientIp();
         services.AddRateLimiting(configuration);
         services.AddObservability(configuration);
         services.AddModules();
@@ -193,61 +195,71 @@ public static class DependencyInjection
         var rateLimiting = configuration.GetSection(RateLimitingOptions.SectionName).Get<RateLimitingOptions>()
                            ?? new RateLimitingOptions();
 
+        var window = TimeSpan.FromSeconds(rateLimiting.WindowSeconds);
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.AddPolicy("public", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = rateLimiting.PublicPermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimiting.WindowSeconds),
-                        QueueLimit = 0
-                    }));
-
+                PerClient(httpContext, rateLimiting.PublicPermitLimit, window, exemptInternal: true));
             options.AddPolicy("search", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = rateLimiting.SearchPermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimiting.WindowSeconds),
-                        QueueLimit = 0
-                    }));
-
+                PerClient(httpContext, rateLimiting.SearchPermitLimit, window, exemptInternal: true));
             options.AddPolicy("authentication", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = rateLimiting.AuthenticationPermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimiting.WindowSeconds),
-                        QueueLimit = 0
-                    }));
-
+                PerClient(httpContext, rateLimiting.AuthenticationPermitLimit, window, exemptInternal: false));
             options.AddPolicy("analytics", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = rateLimiting.AnalyticsPermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimiting.WindowSeconds),
-                        QueueLimit = 0
-                    }));
+                PerClient(httpContext, rateLimiting.AnalyticsPermitLimit, window, exemptInternal: false));
 
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = rateLimiting.PublicPermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimiting.WindowSeconds),
-                        QueueLimit = 0
-                    }));
+                PerClient(httpContext, rateLimiting.PublicPermitLimit, window, exemptInternal: true));
         });
 
+        return services;
+    }
+
+    /// <summary>
+    /// Internal callers (Next.js SSR rendering pages for every visitor and crawler) share one
+    /// address, so a per-IP budget would throttle the whole site at once.
+    /// </summary>
+    private static RateLimitPartition<string> PerClient(
+        HttpContext httpContext,
+        int permitLimit,
+        TimeSpan window,
+        bool exemptInternal)
+    {
+        var address = httpContext.Connection.RemoteIpAddress;
+        if (exemptInternal && ClientNetwork.IsPrivate(address))
+        {
+            return RateLimitPartition.GetNoLimiter("internal");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            address?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = window,
+                QueueLimit = 0
+            });
+    }
+
+    /// <summary>
+    /// nginx appends the real client to X-Forwarded-For; only the last hop is trusted, so a
+    /// client-supplied header cannot spoof the address.
+    /// </summary>
+    private static IServiceCollection AddForwardedClientIp(this IServiceCollection services)
+    {
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.ForwardLimit = 1;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+            foreach (var network in ClientNetwork.Private)
+            {
+                options.KnownIPNetworks.Add(network);
+            }
+        });
         return services;
     }
 

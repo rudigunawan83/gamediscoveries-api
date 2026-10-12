@@ -51,6 +51,12 @@ public interface IGamePlaySessionService
         CancellationToken cancellationToken = default);
 
     Task<GamePlaySessionOverview> GetOverviewAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ends sessions whose client vanished without calling end (closed tab, killed app).
+    /// Returns how many sessions were finalized.
+    /// </summary>
+    Task<int> FinalizeIdleSessionsAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class GamePlaySessionService(
@@ -406,6 +412,32 @@ public sealed class GamePlaySessionService(
 
     public Task<GamePlaySessionOverview> GetOverviewAsync(CancellationToken cancellationToken = default) =>
         store.GetOverviewAsync(cancellationToken);
+
+    public async Task<int> FinalizeIdleSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        const int batchSize = 200;
+        var idleBefore = DateTimeOffset.UtcNow.AddMinutes(-options.Value.IdleSessionTimeoutMinutes);
+        var finalized = 0;
+
+        while (true)
+        {
+            var batch = await store.GetIdleOpenSessionsAsync(idleBefore, batchSize, cancellationToken);
+            foreach (var entity in batch)
+            {
+                // End at the last client activity so abandoned time is not counted as play.
+                var endedAt = entity.UpdatedAt > entity.StartedAt ? entity.UpdatedAt : entity.StartedAt;
+                await FinalizeAsEndedAsync(
+                    entity,
+                    GamePlayEndReasons.Timeout,
+                    endedAt,
+                    forceInvalidReason: null,
+                    cancellationToken);
+                finalized++;
+            }
+
+            if (batch.Count < batchSize) return finalized;
+        }
+    }
 
     private async Task<GamePlaySessionResponse> FinalizeAsEndedAsync(
         GamePlaySessionEntity entity,

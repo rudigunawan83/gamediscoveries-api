@@ -124,12 +124,13 @@ public sealed class GamePlaySessionServiceTests
             new StartGamePlaySessionRequest(Guid.NewGuid(), anon, "WEB", "WEB", null, null),
             null);
 
+        var t0 = DateTimeOffset.UtcNow.AddMinutes(-10);
         var entity = store.Sessions[started.SessionId.ToString("D")];
-        entity.StartedAt = DateTimeOffset.Parse("2026-10-05T10:00:00Z");
-        entity.LastHeartbeatAt = DateTimeOffset.Parse("2026-10-05T10:00:00Z");
+        entity.StartedAt = t0;
+        entity.LastHeartbeatAt = t0;
 
-        // Force clock by mutating before pause flush: pretend last hb at 10:03
-        entity.LastHeartbeatAt = DateTimeOffset.Parse("2026-10-05T10:03:00Z");
+        // Force clock by mutating before pause flush: pretend last hb at t0+3m
+        entity.LastHeartbeatAt = t0.AddMinutes(3);
         entity.AccumulatedActiveMs = 180_000;
 
         await sessions.PauseAsync(
@@ -145,13 +146,13 @@ public sealed class GamePlaySessionServiceTests
             anon);
 
         entity = store.Sessions[started.SessionId.ToString("D")];
-        entity.LastHeartbeatAt = DateTimeOffset.Parse("2026-10-05T10:05:00Z");
+        entity.LastHeartbeatAt = t0.AddMinutes(5);
         entity.AccumulatedActiveMs = 180_000;
         // After resume, credit next 3 minutes
-        entity.LastHeartbeatAt = DateTimeOffset.Parse("2026-10-05T10:05:00Z");
+        entity.LastHeartbeatAt = t0.AddMinutes(5);
         await sessions.HeartbeatAsync(
             started.SessionId.ToString("D"),
-            new HeartbeatGamePlaySessionRequest(anon, DateTimeOffset.Parse("2026-10-05T10:08:00Z"), "visible", true),
+            new HeartbeatGamePlaySessionRequest(anon, t0.AddMinutes(8), "visible", true),
             null,
             anon);
 
@@ -168,6 +169,44 @@ public sealed class GamePlaySessionServiceTests
 
         ended.Status.Should().BeOneOf(GamePlaySessionStatuses.Ended, GamePlaySessionStatuses.Invalid);
         ended.ActiveSeconds.Should().BeGreaterThanOrEqualTo(180);
+    }
+
+    [Fact]
+    public async Task Idle_sessions_end_at_last_activity_and_recent_ones_stay_open()
+    {
+        var (sessions, store) = CreateService(minimumValid: 30);
+        var anon = Guid.NewGuid();
+        var gameId = Guid.NewGuid();
+        var otherGameId = Guid.NewGuid();
+        store.PublishedGames.Add(gameId);
+        store.PublishedGames.Add(otherGameId);
+
+        var idle = await sessions.StartAsync(
+            gameId,
+            new StartGamePlaySessionRequest(Guid.NewGuid(), anon, "WEB", "WEB", null, null),
+            null);
+        var recent = await sessions.StartAsync(
+            otherGameId,
+            new StartGamePlaySessionRequest(Guid.NewGuid(), anon, "WEB", "WEB", null, null),
+            null);
+
+        var lastActivity = DateTimeOffset.UtcNow.AddHours(-3);
+        var entity = store.Sessions[idle.SessionId.ToString("D")];
+        entity.StartedAt = lastActivity.AddMinutes(-2);
+        entity.LastHeartbeatAt = lastActivity;
+        entity.UpdatedAt = lastActivity;
+        entity.AccumulatedActiveMs = 120_000;
+
+        var finalized = await sessions.FinalizeIdleSessionsAsync();
+
+        finalized.Should().Be(1);
+        var ended = store.Sessions[idle.SessionId.ToString("D")];
+        ended.Status.Should().Be(GamePlaySessionStatuses.Ended);
+        ended.EndReason.Should().Be(GamePlayEndReasons.Timeout);
+        ended.EndedAt.Should().Be(lastActivity);
+        ended.DurationSeconds.Should().Be(120);
+        ended.IsValid.Should().BeTrue();
+        store.Sessions[recent.SessionId.ToString("D")].Status.Should().Be(GamePlaySessionStatuses.Active);
     }
 
     [Fact]
@@ -240,6 +279,20 @@ public sealed class GamePlaySessionServiceTests
                 .Where(s =>
                     (userId is not null && s.UserId == userId) ||
                     (anonymousId is not null && s.AnonymousId == anonymousId))
+                .ToList();
+            return Task.FromResult<IReadOnlyList<GamePlaySessionEntity>>(list);
+        }
+
+        public Task<IReadOnlyList<GamePlaySessionEntity>> GetIdleOpenSessionsAsync(
+            DateTimeOffset idleBefore,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            var list = Sessions.Values
+                .Where(s => GamePlaySessionStatuses.Open.Contains(s.Status) && s.UpdatedAt < idleBefore)
+                .OrderBy(s => s.UpdatedAt)
+                .Take(limit)
+                .Select(Clone)
                 .ToList();
             return Task.FromResult<IReadOnlyList<GamePlaySessionEntity>>(list);
         }

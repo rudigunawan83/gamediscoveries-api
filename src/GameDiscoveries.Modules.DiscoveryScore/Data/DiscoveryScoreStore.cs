@@ -280,25 +280,25 @@ public sealed class DiscoveryScoreStore(IDbConnectionFactory connectionFactory) 
                 COALESCE((
                     SELECT COUNT(*)::int FROM analytics_events e
                     WHERE e.game_id = g.id
-                      AND e.event_type IN ('GAME_VIEW', 'GAME_VIEWED')
+                      AND e.event_name = 'GAME_VIEW'
                       AND e.occurred_at >= @CurrentStart AND e.occurred_at < @Now
                 ), 0) AS Views24h,
                 COALESCE((
                     SELECT COUNT(*)::int FROM analytics_events e
                     WHERE e.game_id = g.id
-                      AND e.event_type IN ('GAME_VIEW', 'GAME_VIEWED')
+                      AND e.event_name = 'GAME_VIEW'
                       AND e.occurred_at >= @PrevStart AND e.occurred_at < @CurrentStart
                 ), 0) AS ViewsPrev24h,
                 COALESCE((
                     SELECT COUNT(*)::int FROM analytics_events e
                     WHERE e.game_id = g.id
-                      AND e.event_type IN ('GAME_START', 'GAME_SESSION_START')
+                      AND e.event_name = 'GAME_SESSION_START'
                       AND e.occurred_at >= @CurrentStart AND e.occurred_at < @Now
                 ), 0) AS Starts24h,
                 COALESCE((
                     SELECT COUNT(*)::int FROM analytics_events e
                     WHERE e.game_id = g.id
-                      AND e.event_type IN ('GAME_START', 'GAME_SESSION_START')
+                      AND e.event_name = 'GAME_SESSION_START'
                       AND e.occurred_at >= @PrevStart AND e.occurred_at < @CurrentStart
                 ), 0) AS StartsPrev24h,
                 COALESCE((
