@@ -23,11 +23,15 @@ public sealed class GameMapperTests
             Orientation = "landscape",
             CreatedAt = now,
             UpdatedAt = now,
-            PublishedAt = now
+            PublishedAt = now,
+            CanonicalSlug = "example-game-original",
+            ContentUpdatedAt = now.AddDays(-3)
         };
 
         var response = GameMapper.ToResponse(row, ["arcade", "demo"]);
 
+        response.CanonicalSlug.Should().Be("example-game-original");
+        response.ContentUpdatedAt.Should().Be(now.AddDays(-3));
         response.Slug.Should().Be("example-game");
         response.Title.Should().Be("Example Game");
         response.MobileReady.Should().BeTrue();

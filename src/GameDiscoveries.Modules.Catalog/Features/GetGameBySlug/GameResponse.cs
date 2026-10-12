@@ -21,4 +21,7 @@ public sealed record GameResponse(
     IReadOnlyList<string> Tags,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? PublishedAt);
+    DateTimeOffset? PublishedAt,
+    // Slug of the published game this page duplicates (itself when canonical); null when unpublished.
+    string? CanonicalSlug,
+    DateTimeOffset ContentUpdatedAt);

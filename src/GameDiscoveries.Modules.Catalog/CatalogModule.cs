@@ -3,6 +3,7 @@ using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.Modules.Catalog.Features.GetGameBySlug;
 using GameDiscoveries.Modules.Catalog.Features.ListCategories;
 using GameDiscoveries.Modules.Catalog.Features.ListGames;
+using GameDiscoveries.Modules.Catalog.Features.Sitemap;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +18,7 @@ public sealed class CatalogModule : IModule
         services.AddScoped<GetGameBySlugHandler>();
         services.AddScoped<ListGamesHandler>();
         services.AddScoped<ListCategoriesHandler>();
+        services.AddScoped<SitemapGamesHandler>();
         services.AddValidatorsFromAssemblyContaining<GetGameBySlugValidator>();
     }
 
@@ -25,6 +27,7 @@ public sealed class CatalogModule : IModule
         endpoints.MapListGames();
         endpoints.MapGetGameBySlug();
         endpoints.MapListCategories();
+        endpoints.MapSitemapGames();
     }
 }
 

@@ -25,5 +25,7 @@ public static class GameMapper
         tags,
         row.CreatedAt,
         row.UpdatedAt,
-        row.PublishedAt);
+        row.PublishedAt,
+        row.CanonicalSlug,
+        row.ContentUpdatedAt);
 }

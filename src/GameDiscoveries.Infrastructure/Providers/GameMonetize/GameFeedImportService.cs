@@ -317,6 +317,13 @@ public sealed class GameFeedImportService(
                         mobile_ready = @MobileReady,
                         orientation = @Orientation,
                         status = 'published',
+                        content_updated_at = CASE
+                            WHEN (title, description, instructions, thumbnail_url, cover_url, game_url, embed_url)
+                                 IS DISTINCT FROM
+                                 (@Title, @Description, @Instructions, @ThumbnailUrl, @CoverUrl, @GameUrl, @EmbedUrl)
+                            THEN @Now
+                            ELSE content_updated_at
+                        END,
                         updated_at = @Now
                     WHERE id = @GameId;
                     """,

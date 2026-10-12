@@ -1,6 +1,7 @@
 using Dapper;
 using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.BuildingBlocks.Errors;
+using GameDiscoveries.Modules.Catalog.Domain;
 using Microsoft.Extensions.Logging;
 
 namespace GameDiscoveries.Modules.Catalog.Features.GetGameBySlug;
@@ -13,8 +14,10 @@ public sealed class GetGameBySlugHandler(
         GetGameBySlugQuery query,
         CancellationToken cancellationToken = default)
     {
-        const string sql = """
+        const string sql = $"""
             SELECT
+                {CanonicalGames.CanonicalSlugSql} AS CanonicalSlug,
+                g.content_updated_at AS ContentUpdatedAt,
                 g.id AS Id,
                 g.slug AS Slug,
                 g.title AS Title,
@@ -116,4 +119,6 @@ public sealed class GameRow
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? PublishedAt { get; init; }
+    public string? CanonicalSlug { get; init; }
+    public DateTimeOffset ContentUpdatedAt { get; init; }
 }
