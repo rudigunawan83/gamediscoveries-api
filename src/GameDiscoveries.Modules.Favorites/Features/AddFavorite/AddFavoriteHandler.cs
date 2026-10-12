@@ -1,8 +1,12 @@
 using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Authentication;
 using GameDiscoveries.BuildingBlocks.Errors;
+using GameDiscoveries.Modules.Analytics.Domain;
+using GameDiscoveries.Modules.Analytics.Models;
+using GameDiscoveries.Modules.Analytics.Services;
 using GameDiscoveries.Modules.Favorites.Data;
 using GameDiscoveries.Modules.Xp.Services;
+using Microsoft.Extensions.Logging;
 
 namespace GameDiscoveries.Modules.Favorites.Features.AddFavorite;
 
@@ -13,7 +17,9 @@ public sealed class AddFavoriteHandler(
     IUserLibraryRepository library,
     IXpEngine xpEngine,
     IEnumerable<IMissionActivitySink> missionSinks,
-    IEnumerable<IAchievementActivitySink> achievementSinks)
+    IEnumerable<IAchievementActivitySink> achievementSinks,
+    IAnalyticsEventService analytics,
+    ILogger<AddFavoriteHandler> logger)
 {
     public async Task HandleAsync(AddFavoriteRequest request, CancellationToken cancellationToken = default)
     {
@@ -50,6 +56,39 @@ public sealed class AddFavoriteHandler(
         foreach (var sink in achievementSinks)
         {
             await sink.OnFavoriteAddedAsync(userId, request.GameId, cancellationToken);
+        }
+
+        await TrackFavoriteAddedAsync(userId, request.GameId, cancellationToken);
+    }
+
+    // Recorded here rather than by clients so web and app favorites are counted once each.
+    private async Task TrackFavoriteAddedAsync(Guid userId, Guid gameId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await analytics.TrackAsync(
+                new AnalyticsEventIngestRequest(
+                    Guid.NewGuid(),
+                    AnalyticsEventTypes.FavoriteAdded,
+                    null,
+                    null,
+                    gameId,
+                    AnalyticsSources.Api,
+                    AnalyticsPlatforms.Unknown,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    DateTimeOffset.UtcNow),
+                userId,
+                null,
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to record FAVORITE_ADDED for game {GameId}", gameId);
         }
     }
 }

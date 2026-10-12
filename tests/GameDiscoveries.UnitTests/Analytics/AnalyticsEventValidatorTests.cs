@@ -237,9 +237,20 @@ public sealed class AnalyticsEventTypesTests
     [InlineData("game_started", "GAME_START")]
     [InlineData("game_exit", "GAME_SESSION_END")]
     [InlineData("page_view", "PAGE_VIEW")]
+    [InlineData("game_play_clicked", "PLAY_CLICK")]
+    [InlineData("game_loaded", "GAME_LOADED")]
+    [InlineData("game_load_failed", "GAME_LOAD_FAILED")]
     public void TryNormalize_maps_aliases(string raw, string expected)
     {
         AnalyticsEventTypes.TryNormalize(raw, out var canonical).Should().BeTrue();
         canonical.Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData("mobile_app", "MOBILE")]
+    [InlineData("mobile", "MOBILE")]
+    [InlineData(null, "WEB")]
+    [InlineData("unknown", "WEB")]
+    public void Sources_normalize_app_aliases(string? raw, string expected) =>
+        AnalyticsSources.Normalize(raw).Should().Be(expected);
 }

@@ -24,6 +24,23 @@ public sealed record GameCategoryPlays(string Name, long Plays);
 
 public sealed record GamePlayerMix(long NewPlayers, long ReturningPlayers);
 
+public sealed record GameLaunchFailure(string Title, string Slug, long Attempts, long Failed);
+
+/// <summary>
+/// Detail view to valid session. Clicks, loads, and failures come from player events, which
+/// exist only from the release that introduced them; sessions are server-measured.
+/// LoadSuccessRate is null until any load outcome is reported.
+/// </summary>
+public sealed record GameLaunchFunnel(
+    long Views,
+    long PlayClicks,
+    long Loaded,
+    long LoadFailed,
+    long Sessions,
+    long ValidSessions,
+    double? LoadSuccessRate,
+    IReadOnlyList<GameLaunchFailure> FailingGames);
+
 public sealed record MonitoringGamesResponse(
     string Range,
     DateTimeOffset From,
@@ -33,7 +50,7 @@ public sealed record MonitoringGamesResponse(
     MonitoringCount TotalPlays,
     MonitoringDuration AveragePlaytime,
     MonitoringCount ActiveGames,
-    MonitoringUnavailable LaunchOutcomes,
+    GameLaunchFunnel Launch,
     IReadOnlyList<GamePlaysPoint> Trend,
     IReadOnlyList<GamePlaytimeBucket> PlaytimeDistribution,
     IReadOnlyList<GameAnalyticsTopGame> TopGames,

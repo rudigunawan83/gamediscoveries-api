@@ -123,6 +123,9 @@ public sealed class AnalyticsEventValidator(IOptions<AnalyticsOptions> options) 
         switch (eventType)
         {
             case AnalyticsEventTypes.GameView:
+            case AnalyticsEventTypes.PlayClick:
+            case AnalyticsEventTypes.GameLoaded:
+            case AnalyticsEventTypes.GameLoadFailed:
             case AnalyticsEventTypes.GameStart:
             case AnalyticsEventTypes.FavoriteAdded:
             case AnalyticsEventTypes.FavoriteRemoved:

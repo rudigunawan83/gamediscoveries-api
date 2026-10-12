@@ -74,8 +74,8 @@ public static class MonitoringEndpoints
             .WithSummary("Read-only game performance and engagement for super admins.")
             .WithDescription(
                 "Aggregates play sessions: plays, unique players, server-measured playtime, playtime " +
-                "distribution, top games, plays by category, and new versus returning players. " +
-                "Launch success is unavailable because the player does not report load failures. " +
+                "distribution, top games, plays by category, and new versus returning players, plus the " +
+                "launch funnel (view, play click, load, session, valid session) and games failing to load. " +
                 "Results are cached for 5 minutes unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
             .RequireRateLimiting("public")

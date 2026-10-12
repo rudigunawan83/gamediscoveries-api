@@ -22,24 +22,32 @@ public static class PlaytimeBuckets
         Keys.Select((key, index) => new GamePlaytimeBucket(key, index < sessions.Count ? sessions[index] : 0)).ToList();
 }
 
+public static class LaunchRates
+{
+    /// <summary>Share of reported load outcomes that succeeded; null when none were reported.</summary>
+    public static double? SuccessPercent(long loaded, long failed)
+    {
+        var outcomes = loaded + failed;
+        return outcomes <= 0 ? null : Math.Round(100.0 * loaded / outcomes, 1);
+    }
+}
+
 public sealed class GameAnalyticsService(
     IDbConnectionFactory connectionFactory,
     ICacheService cache) : IGameAnalyticsService
 {
     private const int TopGamesLimit = 5;
     private const int CategoryLimit = 7;
+    private const int FailingGamesLimit = 5;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
-
-    private static readonly MonitoringUnavailable LaunchOutcomes = new(
-        "The game player does not report load failures, so launch success and failure cannot be measured.");
 
     public async Task<MonitoringGamesResponse> GetGamesAsync(
         MonitoringWindow window,
         bool bypassCache,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"monitoring:games:{window.Key}";
+        var cacheKey = $"monitoring:games:v2:{window.Key}";
         if (!bypassCache)
         {
             var cached = await cache.GetAsync<MonitoringGamesResponse>(cacheKey, cancellationToken);
@@ -88,6 +96,13 @@ public sealed class GameAnalyticsService(
         var mix = await connection.QuerySingleAsync<MixRow>(new CommandDefinition(
             PlayerMixSql, args, cancellationToken: cancellationToken));
 
+        var funnel = await connection.QuerySingleAsync<FunnelRow>(new CommandDefinition(
+            FunnelSql, args, cancellationToken: cancellationToken));
+        var failing = (await connection.QueryAsync<GameLaunchFailure>(new CommandDefinition(
+            FailingGamesSql,
+            new { window.From, window.To, Limit = FailingGamesLimit },
+            cancellationToken: cancellationToken))).ToList();
+
         return new MonitoringGamesResponse(
             window.Key,
             window.From,
@@ -99,7 +114,7 @@ public sealed class GameAnalyticsService(
                 RoundSeconds(current.AverageSeconds),
                 MonitoringMath.ChangePercent(current.AverageSeconds, before.AverageSeconds)),
             new MonitoringCount(current.ActiveGames, MonitoringMath.ChangePercent(current.ActiveGames, before.ActiveGames)),
-            LaunchOutcomes,
+            ToFunnel(funnel, failing),
             trend.Select(row => new GamePlaysPoint(
                 AsUtc(row.Bucket),
                 row.Plays,
@@ -127,6 +142,17 @@ public sealed class GameAnalyticsService(
 
     private static double? RoundSeconds(double? seconds) =>
         seconds is null ? null : Math.Round(seconds.Value, 1);
+
+    private static GameLaunchFunnel ToFunnel(FunnelRow row, IReadOnlyList<GameLaunchFailure> failing) =>
+        new(
+            row.Views,
+            row.PlayClicks,
+            row.Loaded,
+            row.LoadFailed,
+            row.Sessions,
+            row.ValidSessions,
+            LaunchRates.SuccessPercent(row.Loaded, row.LoadFailed),
+            failing);
 
     private static DateTimeOffset AsUtc(DateTime value) =>
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
@@ -255,6 +281,65 @@ public sealed class GameAnalyticsService(
                COUNT(*) FILTER (WHERE is_returning)::bigint AS ReturningPlayers
         FROM flagged
         """;
+
+    private const string FunnelSql =
+        """
+        WITH events AS (
+            SELECT COUNT(*) FILTER (WHERE event_name = 'GAME_VIEW')::bigint AS views,
+                   COUNT(*) FILTER (WHERE event_name = 'PLAY_CLICK')::bigint AS play_clicks,
+                   COUNT(*) FILTER (WHERE event_name = 'GAME_LOADED')::bigint AS loaded,
+                   COUNT(*) FILTER (WHERE event_name = 'GAME_LOAD_FAILED')::bigint AS load_failed
+            FROM analytics_events
+            WHERE occurred_at >= @From AND occurred_at < @To
+              AND event_name IN ('GAME_VIEW', 'PLAY_CLICK', 'GAME_LOADED', 'GAME_LOAD_FAILED')
+        ),
+        sessions AS (
+            SELECT COUNT(*)::bigint AS sessions,
+                   COUNT(*) FILTER (WHERE is_valid IS TRUE)::bigint AS valid_sessions
+            FROM game_play_sessions
+            WHERE started_at >= @From AND started_at < @To
+        )
+        SELECT e.views AS Views,
+               e.play_clicks AS PlayClicks,
+               e.loaded AS Loaded,
+               e.load_failed AS LoadFailed,
+               s.sessions AS Sessions,
+               s.valid_sessions AS ValidSessions
+        FROM events e CROSS JOIN sessions s
+        """;
+
+    private const string FailingGamesSql =
+        """
+        WITH outcomes AS (
+            SELECT game_id,
+                   COUNT(*) FILTER (WHERE event_name = 'GAME_LOADED')::bigint AS loaded,
+                   COUNT(*) FILTER (WHERE event_name = 'GAME_LOAD_FAILED')::bigint AS failed
+            FROM analytics_events
+            WHERE occurred_at >= @From AND occurred_at < @To
+              AND game_id IS NOT NULL
+              AND event_name IN ('GAME_LOADED', 'GAME_LOAD_FAILED')
+            GROUP BY game_id
+        )
+        SELECT g.title AS Title,
+               g.slug AS Slug,
+               (o.loaded + o.failed)::bigint AS Attempts,
+               o.failed AS Failed
+        FROM outcomes o
+        INNER JOIN games g ON g.id = o.game_id
+        WHERE o.failed > 0
+        ORDER BY o.failed::double precision / (o.loaded + o.failed) DESC, o.failed DESC, g.title
+        LIMIT @Limit
+        """;
+
+    private sealed class FunnelRow
+    {
+        public long Views { get; init; }
+        public long PlayClicks { get; init; }
+        public long Loaded { get; init; }
+        public long LoadFailed { get; init; }
+        public long Sessions { get; init; }
+        public long ValidSessions { get; init; }
+    }
 
     private sealed class CatalogRow
     {

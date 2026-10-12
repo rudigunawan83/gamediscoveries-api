@@ -25,6 +25,9 @@ public static class AnalyticsEventTypes
     public const string GameView = "GAME_VIEW";
 
     // Game
+    public const string PlayClick = "PLAY_CLICK";
+    public const string GameLoaded = "GAME_LOADED";
+    public const string GameLoadFailed = "GAME_LOAD_FAILED";
     public const string GameStart = "GAME_START";
     public const string GameSessionStart = "GAME_SESSION_START";
     public const string GameSessionHeartbeat = "GAME_SESSION_HEARTBEAT";
@@ -83,6 +86,7 @@ public static class AnalyticsEventTypes
         AppOpen, AppInstall, AppUpdate,
         SignUp, Login, Logout,
         HomeView, Search, SearchResultClick, CategoryView, TagView, GameView,
+        PlayClick, GameLoaded, GameLoadFailed,
         GameStart, GameSessionStart, GameSessionHeartbeat, GameSessionPause, GameSessionResume, GameSessionEnd,
         FavoriteAdded, FavoriteRemoved, RatingCreated, ReviewCreated, GameShared,
         PageView, ScreenView,
@@ -109,7 +113,10 @@ public static class AnalyticsEventTypes
         ["game_click"] = SearchResultClick,
         ["game_start"] = GameStart,
         ["game_started"] = GameStart,
-        ["game_play_clicked"] = GameStart,
+        ["game_play_clicked"] = PlayClick,
+        ["play_click"] = PlayClick,
+        ["game_loaded"] = GameLoaded,
+        ["game_load_failed"] = GameLoadFailed,
         ["game_session_start"] = GameSessionStart,
         ["game_session_heartbeat"] = GameSessionHeartbeat,
         ["game_session_pause"] = GameSessionPause,
@@ -230,10 +237,16 @@ public static class AnalyticsSources
         Web, Mobile, Game, Api, Admin, System
     };
 
-    public static string Normalize(string? raw) =>
-        !string.IsNullOrWhiteSpace(raw) && All.Contains(raw)
-            ? All.First(x => string.Equals(x, raw, StringComparison.OrdinalIgnoreCase))
-            : Web;
+    // Released Android builds send "mobile_app".
+    private static readonly IReadOnlyDictionary<string, string> Aliases =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["mobile_app"] = Mobile };
+
+    public static string Normalize(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return Web;
+        if (Aliases.TryGetValue(raw, out var alias)) return alias;
+        return All.FirstOrDefault(x => string.Equals(x, raw, StringComparison.OrdinalIgnoreCase)) ?? Web;
+    }
 }
 
 public static class AnalyticsPlatforms
