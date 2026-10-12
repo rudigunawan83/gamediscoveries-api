@@ -333,7 +333,8 @@ public sealed class SeoMonitoringService(
 
     private MonitoringUnavailable Failure(Exception exception)
     {
-        if (exception is SearchConsoleException { Status: HttpStatusCode.Forbidden })
+        if (exception is SearchConsoleException { Status: HttpStatusCode.Forbidden } forbidden
+            && forbidden.Message.Contains("permission", StringComparison.OrdinalIgnoreCase))
         {
             return new MonitoringUnavailable(
                 $"The service account {searchConsole.ServiceAccountEmail} has no access to {searchConsole.SiteUrl}. " +
