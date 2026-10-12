@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Text;
 using Dapper;
+using GameDiscoveries.BuildingBlocks.Abstractions;
 using GameDiscoveries.BuildingBlocks.Database;
 using GameDiscoveries.BuildingBlocks.Pagination;
 using GameDiscoveries.BuildingBlocks.Ranking;
@@ -11,8 +12,12 @@ namespace GameDiscoveries.Modules.Catalog.Features.ListGames;
 public sealed class ListGamesHandler(
     IDbConnectionFactory connectionFactory,
     IGameRankingService rankingService,
+    ISearchService search,
     ILogger<ListGamesHandler> logger)
 {
+    private const string GamesSearchIndex = "games";
+    private const int MaxSearchHits = 200;
+
     public async Task<(IReadOnlyList<GameSummaryResponse> Items, PaginationMeta Meta)> HandleAsync(
         ListGamesQuery query,
         CancellationToken cancellationToken = default)
@@ -34,10 +39,16 @@ public sealed class ListGamesHandler(
         parameters.Add("Offset", query.Skip);
         parameters.Add("Limit", query.Take);
 
+        Guid[] rankedIds = [];
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            filters.Append(" AND (g.title ILIKE @Search OR g.description ILIKE @Search)");
-            parameters.Add("Search", $"%{query.Search.Trim()}%");
+            var term = query.Search.Trim();
+            rankedIds = await SearchIdsAsync(term, cancellationToken);
+            // Meilisearch adds typo-tolerant, ranked matches; the substring match keeps results
+            // correct when the index lags the catalog or the search service is down.
+            filters.Append(" AND (g.id = ANY(@SearchIds) OR g.title ILIKE @Search OR g.description ILIKE @Search)");
+            parameters.Add("Search", $"%{term}%");
+            parameters.Add("SearchIds", rankedIds);
         }
 
         if (!string.IsNullOrWhiteSpace(query.Category))
@@ -99,6 +110,10 @@ public sealed class ListGamesHandler(
             "popular" => rankingService.OrderBySqlClause(GameRankingKind.Popular),
             _ => rankingService.OrderBySqlClause(GameRankingKind.Newest)
         };
+        if (rankedIds.Length > 0 && IsRelevanceSort(query.Sort))
+        {
+            orderBy = $"array_position(@SearchIds, g.id) NULLS LAST, {orderBy}";
+        }
 
         var countSql = "SELECT COUNT(*) " + filters;
         var listSql = $"""
@@ -134,5 +149,32 @@ public sealed class ListGamesHandler(
             total);
 
         return (items, PaginationMeta.Create(query.Page, query.Take, total));
+    }
+
+    /// <summary>Search ranks results unless the caller asked for an explicit order.</summary>
+    public static bool IsRelevanceSort(string? sort) =>
+        string.IsNullOrWhiteSpace(sort) || sort.Trim().Equals("relevance", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<Guid[]> SearchIdsAsync(string term, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await search.SearchAsync<SearchHit>(GamesSearchIndex, term, MaxSearchHits, cancellationToken);
+            return result.Hits
+                .Select(hit => Guid.TryParse(hit.Id, out var id) ? id : Guid.Empty)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Search index unavailable; falling back to substring match");
+            return [];
+        }
+    }
+
+    private sealed class SearchHit
+    {
+        public string Id { get; init; } = string.Empty;
     }
 }

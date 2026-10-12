@@ -61,14 +61,14 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
                 WHERE fm.game_id = g.id
             ), 0) AS PopularityProxy,
             COALESCE((
-                SELECT SUM(h.duration_seconds)::float
-                FROM user_play_history h
-                WHERE h.game_id = g.id
+                SELECT SUM(s.active_seconds)::float
+                FROM game_play_sessions s
+                WHERE s.game_id = g.id AND s.is_valid AND s.ended_at IS NOT NULL
             ), 0) AS EngagementProxy,
             COALESCE((
                 SELECT COUNT(*)::int
-                FROM user_play_history h2
-                WHERE h2.game_id = g.id
+                FROM game_play_sessions s2
+                WHERE s2.game_id = g.id AND s2.is_valid AND s2.ended_at IS NOT NULL
             ), 0) AS GlobalPlaySessions,
             COALESCE(ds.score, 0)::float8 AS DiscoveryScore,
             COALESCE(ds.trending_score, 0)::float8 AS TrendingScore,
@@ -380,7 +380,10 @@ public sealed class RecommendationRepository(IDbConnectionFactory connectionFact
                )
              {ExcludeClause(excludeIds)}
              ORDER BY
-                COALESCE((SELECT SUM(h.duration_seconds) FROM user_play_history h WHERE h.game_id = g.id), 0) DESC,
+                COALESCE((
+                    SELECT SUM(s.active_seconds) FROM game_play_sessions s
+                    WHERE s.game_id = g.id AND s.is_valid AND s.ended_at IS NOT NULL
+                ), 0) DESC,
                 g.published_at DESC NULLS LAST
              LIMIT @Limit;
              """,

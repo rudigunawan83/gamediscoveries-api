@@ -60,6 +60,7 @@ public sealed class MeilisearchService : ISearchService
     public async Task<DocumentSearchResult<T>> SearchAsync<T>(
         string index,
         string query,
+        int limit = 20,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -67,7 +68,10 @@ public sealed class MeilisearchService : ISearchService
         try
         {
             var indexClient = _client.Index(index);
-            var result = await indexClient.SearchAsync<T>(query);
+            var result = await indexClient.SearchAsync<T>(
+                query,
+                new SearchQuery { Limit = limit },
+                cancellationToken);
             var hits = result.Hits?.ToList() ?? [];
 
             return new DocumentSearchResult<T>

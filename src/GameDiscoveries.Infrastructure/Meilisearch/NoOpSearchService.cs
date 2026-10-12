@@ -19,6 +19,7 @@ public sealed class NoOpSearchService : ISearchService
     public Task<DocumentSearchResult<T>> SearchAsync<T>(
         string index,
         string query,
+        int limit = 20,
         CancellationToken cancellationToken = default)
         => Task.FromResult(new DocumentSearchResult<T>
         {
