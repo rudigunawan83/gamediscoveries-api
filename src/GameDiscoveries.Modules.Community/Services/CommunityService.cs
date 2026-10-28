@@ -591,13 +591,19 @@ public sealed class CommunityService(
         var favorites = new List<CommunityGameDto>();
         if ((bool)user.show_favorites || viewerId == userId)
         {
-            favorites = (await connection.QueryAsync<CommunityGameDto>(new CommandDefinition("""
-                SELECT g.id AS Id, g.slug AS Slug, g.title AS Title, g.thumbnail_url AS ThumbnailUrl
+            favorites = (await connection.QueryAsync(new CommandDefinition("""
+                SELECT g.id, g.slug, g.title, g.thumbnail_url
                 FROM user_favorites f
                 INNER JOIN games g ON g.id = f.game_id
                 WHERE f.user_id = @UserId AND g.status = 'published'
                 ORDER BY f.created_at DESC LIMIT 12
-                """, new { UserId = userId }, cancellationToken: ct))).ToList();
+                """, new { UserId = userId }, cancellationToken: ct)))
+                .Select(r => new CommunityGameDto(
+                    (Guid)r.id,
+                    (string)r.slug,
+                    (string)r.title,
+                    (string?)r.thumbnail_url))
+                .ToList();
         }
 
         var achievements = new List<AchievementDto>();
@@ -954,8 +960,10 @@ public sealed class CommunityService(
         var cached = await cache.GetAsync<List<CommunityGameDto>>(cacheKey, cancellationToken);
         if (cached is not null) return cached;
         await using var connection = await OpenAsync(cancellationToken);
-        var rows = (await connection.QueryAsync<CommunityGameDto>(new CommandDefinition("""
-            SELECT g.id AS Id, g.slug AS Slug, g.title AS Title, g.thumbnail_url AS ThumbnailUrl
+        // Map manually: Npgsql lowercases aliases and Dapper cannot bind CommunityGameDto's
+        // optional Categories parameter from a 4-column result set.
+        var rows = (await connection.QueryAsync(new CommandDefinition("""
+            SELECT g.id, g.slug, g.title, g.thumbnail_url
             FROM games g
             LEFT JOIN community_posts p ON p.game_id = g.id AND p.deleted_at IS NULL AND p.created_at > (NOW() AT TIME ZONE 'utc') - INTERVAL '14 days'
             LEFT JOIN game_reviews r ON r.game_id = g.id AND r.deleted_at IS NULL AND r.created_at > (NOW() AT TIME ZONE 'utc') - INTERVAL '30 days'
@@ -963,7 +971,13 @@ public sealed class CommunityService(
             GROUP BY g.id, g.slug, g.title, g.thumbnail_url
             ORDER BY (COUNT(DISTINCT p.id) * 2 + COUNT(DISTINCT r.id)) DESC, g.updated_at DESC
             LIMIT @Limit
-            """, new { Limit = Math.Clamp(limit, 1, 50) }, cancellationToken: cancellationToken))).ToList();
+            """, new { Limit = Math.Clamp(limit, 1, 50) }, cancellationToken: cancellationToken)))
+            .Select(r => new CommunityGameDto(
+                (Guid)r.id,
+                (string)r.slug,
+                (string)r.title,
+                (string?)r.thumbnail_url))
+            .ToList();
         await cache.SetAsync(cacheKey, rows, TimeSpan.FromSeconds(_options.TrendingCacheSeconds), cancellationToken);
         return rows;
     }
