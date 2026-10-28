@@ -30,10 +30,25 @@ public readonly record struct SeoDateRange(DateOnly Start, DateOnly End)
         DateTimeOffset now,
         TimeZoneInfo zone)
     {
-        var days = window.Key switch { "24h" => 1, "7d" => 7, _ => 30 };
-        var end = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime).AddDays(-1);
-        var current = new SeoDateRange(end.AddDays(1 - days), end);
-        var previous = new SeoDateRange(current.Start.AddDays(-days), current.Start.AddDays(-1));
+        var yesterday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime).AddDays(-1);
+        SeoDateRange current;
+        if (window.Key.StartsWith("custom:", StringComparison.Ordinal))
+        {
+            // Inclusive calendar days; MonitoringWindow.To is exclusive midnight.
+            var start = DateOnly.FromDateTime(window.From.UtcDateTime);
+            var end = DateOnly.FromDateTime(window.To.UtcDateTime.AddTicks(-1));
+            if (end > yesterday) end = yesterday;
+            if (start > end) start = end;
+            current = new SeoDateRange(start, end);
+        }
+        else
+        {
+            var days = window.Key switch { "24h" => 1, "7d" => 7, _ => 30 };
+            current = new SeoDateRange(yesterday.AddDays(1 - days), yesterday);
+        }
+
+        var length = current.End.DayNumber - current.Start.DayNumber + 1;
+        var previous = new SeoDateRange(current.Start.AddDays(-length), current.Start.AddDays(-1));
         return (current, previous);
     }
 }

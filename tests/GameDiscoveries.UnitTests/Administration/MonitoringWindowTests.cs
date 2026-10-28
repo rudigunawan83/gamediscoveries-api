@@ -31,6 +31,35 @@ public class MonitoringWindowTests
     }
 
     [Fact]
+    public void Parse_accepts_inclusive_custom_dates()
+    {
+        var window = MonitoringWindow.Parse(null, "2026-10-01", "2026-10-08", Now);
+
+        window.Key.Should().Be("custom:2026-10-01:2026-10-08");
+        window.From.Should().Be(new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero));
+        window.To.Should().Be(new DateTimeOffset(2026, 10, 9, 0, 0, 0, TimeSpan.Zero));
+        window.Hourly.Should().BeFalse();
+        window.Previous.From.Should().Be(new DateTimeOffset(2026, 9, 23, 0, 0, 0, TimeSpan.Zero));
+        window.Previous.To.Should().Be(window.From);
+    }
+
+    [Fact]
+    public void Parse_rejects_custom_range_over_90_days()
+    {
+        var act = () => MonitoringWindow.Parse(null, "2026-01-01", "2026-05-01", Now);
+
+        act.Should().Throw<ValidationException>();
+    }
+
+    [Fact]
+    public void Parse_rejects_custom_without_both_dates()
+    {
+        var act = () => MonitoringWindow.Parse("custom", "2026-10-21", null, Now);
+
+        act.Should().Throw<ValidationException>();
+    }
+
+    [Fact]
     public void Change_percent_is_null_without_a_baseline()
     {
         MonitoringMath.ChangePercent(4, 0).Should().BeNull();

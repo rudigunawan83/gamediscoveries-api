@@ -12,11 +12,13 @@ public static class MonitoringEndpoints
     {
         endpoints.MapGet("/api/v1/admin/monitoring/overview", async (
                 string? range,
+                string? from,
+                string? to,
                 bool? refresh,
                 IMonitoringService monitoring,
                 CancellationToken cancellationToken) =>
             {
-                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var window = MonitoringWindow.Parse(range, from, to, DateTimeOffset.UtcNow);
                 var overview = await monitoring.GetOverviewAsync(window, refresh == true, cancellationToken);
                 return Results.Ok(ApiResponse<MonitoringOverviewResponse>.Ok(overview));
             })
@@ -25,6 +27,7 @@ public static class MonitoringEndpoints
             .WithSummary("Read-only platform overview for super admins.")
             .WithDescription(
                 "Aggregates play sessions, new accounts, database health, and feed sync status. " +
+                "range: 24h | 7d | 30d. Or pass from and to (yyyy-MM-dd, inclusive, max 90 days). " +
                 "Metrics without a data source are returned as unavailable, never as zero. " +
                 "Results are cached for 90 seconds unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
@@ -36,11 +39,13 @@ public static class MonitoringEndpoints
 
         endpoints.MapGet("/api/v1/admin/monitoring/traffic", async (
                 string? range,
+                string? from,
+                string? to,
                 bool? refresh,
                 ITrafficMonitoringService traffic,
                 CancellationToken cancellationToken) =>
             {
-                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var window = MonitoringWindow.Parse(range, from, to, DateTimeOffset.UtcNow);
                 var result = await traffic.GetTrafficAsync(window, refresh == true, cancellationToken);
                 return Results.Ok(ApiResponse<MonitoringTrafficResponse>.Ok(result));
             })
@@ -50,6 +55,7 @@ public static class MonitoringEndpoints
             .WithDescription(
                 "Aggregates analytics events and sessions: visits, page views, unique visitors, " +
                 "session duration, sources, devices, browsers, landing and exit paths, and search keywords. " +
+                "range: 24h | 7d | 30d. Or pass from and to (yyyy-MM-dd, inclusive, max 90 days). " +
                 "Country is unavailable because only hashed IPs are stored. " +
                 "Results are cached for 5 minutes unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
@@ -61,11 +67,13 @@ public static class MonitoringEndpoints
 
         endpoints.MapGet("/api/v1/admin/monitoring/games", async (
                 string? range,
+                string? from,
+                string? to,
                 bool? refresh,
                 IGameAnalyticsService games,
                 CancellationToken cancellationToken) =>
             {
-                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var window = MonitoringWindow.Parse(range, from, to, DateTimeOffset.UtcNow);
                 var result = await games.GetGamesAsync(window, refresh == true, cancellationToken);
                 return Results.Ok(ApiResponse<MonitoringGamesResponse>.Ok(result));
             })
@@ -76,6 +84,7 @@ public static class MonitoringEndpoints
                 "Aggregates play sessions: plays, unique players, server-measured playtime, playtime " +
                 "distribution, top games, plays by category, and new versus returning players, plus the " +
                 "launch funnel (view, play click, load, session, valid session) and games failing to load. " +
+                "range: 24h | 7d | 30d. Or pass from and to (yyyy-MM-dd, inclusive, max 90 days). " +
                 "Results are cached for 5 minutes unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
             .RequireRateLimiting("public")
@@ -86,11 +95,13 @@ public static class MonitoringEndpoints
 
         endpoints.MapGet("/api/v1/admin/monitoring/users", async (
                 string? range,
+                string? from,
+                string? to,
                 bool? refresh,
                 IUserRetentionService users,
                 CancellationToken cancellationToken) =>
             {
-                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var window = MonitoringWindow.Parse(range, from, to, DateTimeOffset.UtcNow);
                 var result = await users.GetUsersAsync(window, refresh == true, cancellationToken);
                 return Results.Ok(ApiResponse<MonitoringUsersResponse>.Ok(result));
             })
@@ -101,6 +112,7 @@ public static class MonitoringEndpoints
                 "Aggregates analytics events from the website and the app per device: DAU, WAU, MAU, " +
                 "new and returning users, weekly cohorts, D1/D7/D30 retention, engagement, an activity " +
                 "heatmap in UTC, top games by players, and new users by acquisition source. " +
+                "range: 24h | 7d | 30d. Or pass from and to (yyyy-MM-dd, inclusive, max 90 days). " +
                 "Results are cached for 10 minutes unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
             .RequireRateLimiting("public")
@@ -111,11 +123,13 @@ public static class MonitoringEndpoints
 
         endpoints.MapGet("/api/v1/admin/monitoring/gamification", async (
                 string? range,
+                string? from,
+                string? to,
                 bool? refresh,
                 IGamificationAnalyticsService gamification,
                 CancellationToken cancellationToken) =>
             {
-                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var window = MonitoringWindow.Parse(range, from, to, DateTimeOffset.UtcNow);
                 var result = await gamification.GetGamificationAsync(window, refresh == true, cancellationToken);
                 return Results.Ok(ApiResponse<MonitoringGamificationResponse>.Ok(result));
             })
@@ -125,6 +139,7 @@ public static class MonitoringEndpoints
             .WithDescription(
                 "Aggregates XP transactions, mission completions, achievement unlocks, levels, and streaks. " +
                 "Seeded demo accounts are excluded. Levels and streaks are current snapshots. " +
+                "range: 24h | 7d | 30d. Or pass from and to (yyyy-MM-dd, inclusive, max 90 days). " +
                 "Results are cached for 5 minutes unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
             .RequireRateLimiting("public")
@@ -135,11 +150,13 @@ public static class MonitoringEndpoints
 
         endpoints.MapGet("/api/v1/admin/monitoring/seo", async (
                 string? range,
+                string? from,
+                string? to,
                 bool? refresh,
                 ISeoMonitoringService seo,
                 CancellationToken cancellationToken) =>
             {
-                var window = MonitoringWindow.Parse(range, DateTimeOffset.UtcNow);
+                var window = MonitoringWindow.Parse(range, from, to, DateTimeOffset.UtcNow);
                 var result = await seo.GetSeoAsync(window, refresh == true, cancellationToken);
                 return Results.Ok(ApiResponse<MonitoringSeoResponse>.Ok(result));
             })
@@ -149,8 +166,10 @@ public static class MonitoringEndpoints
             .WithDescription(
                 "Reads Google Search Console (clicks, impressions, CTR, position, pages, queries, countries, " +
                 "devices, sitemaps) with a service account and Core Web Vitals from the Chrome UX Report. " +
-                "Dates are Search Console days (Pacific Time) ending yesterday. Sections without access are " +
-                "returned as unavailable with a reason. Results are cached for 30 minutes unless refresh=true.")
+                "range: 24h | 7d | 30d. Or pass from and to (yyyy-MM-dd, inclusive, max 90 days). " +
+                "Dates are Search Console days (Pacific Time); custom ends are capped at yesterday. " +
+                "Sections without access are returned as unavailable with a reason. " +
+                "Results are cached for 30 minutes unless refresh=true.")
             .RequireAuthorization(Policies.SuperAdminOnly)
             .RequireRateLimiting("public")
             .Produces(StatusCodes.Status200OK)

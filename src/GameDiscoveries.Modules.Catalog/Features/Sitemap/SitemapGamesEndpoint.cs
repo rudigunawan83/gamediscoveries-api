@@ -29,6 +29,7 @@ public sealed class SitemapGamesHandler(IDbConnectionFactory connectionFactory)
             FROM games g
             WHERE g.status = 'published'
               AND {CanonicalGames.PlayableFilter}
+              AND {CanonicalGames.ProviderNotBlockedFilter}
               AND g.slug <> ''
               AND btrim(g.title) <> ''
         )

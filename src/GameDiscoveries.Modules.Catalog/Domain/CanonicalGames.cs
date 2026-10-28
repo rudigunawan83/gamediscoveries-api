@@ -9,6 +9,21 @@ public static class CanonicalGames
 {
     public const string PlayableFilter = "(g.game_url IS NOT NULL OR g.embed_url IS NOT NULL)";
 
+    /// <summary>
+    /// Exclude provider-blocked/inactive mappings. Games with no mapping row stay eligible
+    /// (COALESCE → active), matching recommendation catalog filters.
+    /// </summary>
+    public const string ProviderNotBlockedFilter =
+        """
+        COALESCE((
+            SELECT m.availability_status
+            FROM game_provider_mappings m
+            WHERE m.game_id = g.id
+            ORDER BY m.updated_at DESC NULLS LAST
+            LIMIT 1
+        ), 'active') NOT IN ('blocked', 'inactive')
+        """;
+
     public const string TitleOrder = "COALESCE(g.published_at, g.created_at), g.created_at, g.id";
 
     /// <summary>Scalar subquery for the canonical slug of the game aliased <c>g</c>.</summary>
